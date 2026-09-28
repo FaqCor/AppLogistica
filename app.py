@@ -6,7 +6,7 @@ from datetime import datetime
 # --- 1. CONFIGURACIÓN DE LA PÁGINA (DEBE IR PRIMERO) ---
 st.set_page_config(page_title="App Logística", page_icon="🚚", layout="centered")
 
-# --- 2. CONEXIÓN A GOOGLE SHEETS (MODO MODERNO Y SEGURO) ---
+# --- 2. CONEXIÓN A GOOGLE SHEETS (CON REPARADOR AUTOMÁTICO DE LLAVE) ---
 @st.cache_resource
 def init_connection():
     scope = [
@@ -14,12 +14,27 @@ def init_connection():
         "https://www.googleapis.com/auth/drive"
     ]
     
-    # Cargamos directamente las credenciales usando el diccionario limpio de st.secrets
     creds_dict = dict(st.secrets["gcp_service_account"])
     
-    # Aseguramos el reemplazo limpio de los saltos de línea escapados
-    if "private_key" in creds_dict:
-        creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
+    # --- REPARADOR BLINDADO DE LLAVE PRIVADA ---
+    private_key = creds_dict.get("private_key", "")
+    
+    # Limpiamos posibles barras invertidas literales
+    private_key = private_key.replace("\\n", "\n")
+    
+    # Si la clave viene en una sola línea o mal formateada, la reconstruimos por completo
+    if "BEGIN PRIVATE KEY" in private_key:
+        # Extraer todo el contenido interno quitando encabezados y espacios vacíos
+        lines = private_key.strip().split("\n")
+        body_lines = [l.strip() for l in lines if "-----" not in l and l.strip()]
+        body = "".join(body_lines)
+        
+        # Volver a formatear en bloques estándar de 64 caracteres con saltos reales
+        formatted_body = "\n".join(body[i:i+64] for i in range(0, len(body), 64))
+        private_key = f"-----BEGIN PRIVATE KEY-----\n{formatted_body}\n-----END PRIVATE KEY-----\n"
+    
+    creds_dict["private_key"] = private_key
+    # -------------------------------------------
 
     creds = Credentials.from_service_account_info(
         creds_dict, 
