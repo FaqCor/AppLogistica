@@ -45,44 +45,47 @@ sheet = get_sheet()
 # --- 3. OBTENER ASIGNACIONES DESDE LA PLANILLA ---
 def obtener_asignaciones_chofer(chofer):
     """
-    Retorna la patente y una lista de diccionarios con los envíos 
-    asignados al chofer desde la solapa 'Asignaciones' de Google Sheets.
+    Retorna la patente y una lista de diccionarios con los envíos y pedidos 
+    asignados al chofer desde la solapa 'Asignación' de Google Sheets.
     """
     patente_asignada = "Sin Asignar"
     envios_lista = []
     try:
-        ws = sheet.worksheet("Asignaciones")
+        ws = sheet.worksheet("Asignación")
         registros = ws.get_all_records()
         for row in registros:
             if str(row.get("Chofer", "")).strip().lower() == chofer.strip().lower():
-                patente_asignada = str(row.get("Patente", "Sin Asignar"))
-                envio_id = str(row.get("Envio", "ENV-000"))
+                patente_asignada = str(row.get("Patente", row.get("Dominio", "Sin Asignar")))
+                envio_id = str(row.get("Envio", row.get("N° envio", "ENV-000")))
+                pedido_id = str(row.get("Pedido", row.get("Pedido N°", "PED-9988")))
                 bultos_sugeridos = int(row.get("Bultos", 1)) if str(row.get("Bultos", "")).isdigit() else 1
+                
                 envios_lista.append({
                     "envio": envio_id,
+                    "pedido": pedido_id,
                     "bultos": bultos_sugeridos
                 })
     except Exception as e:
         pass
     
     if not envios_lista:
-        envios_lista = [{"envio": "ENV-000", "bultos": 1}]
+        envios_lista = [{"envio": "ENV-000", "pedido": "PED-9988", "bultos": 1}]
         
     return patente_asignada, envios_lista
 
 # --- 4. INTERFAZ GENERAL DE LA APP ---
 st.title("🚚 Gestión de Logística - Choferes")
 
-choferes_lista = ["Juan Pérez", "Carlos Gómez", "Mario Ruiz"]
+# Puedes ajustar la lista de choferes o cargarla también dinámicamente si prefieres
+choferes_lista = ["Juan Pérez", "Carlos Gómez", "Mario Ruiz", "Matias", "Carlos", "Miguel"]
 chofer_actual = st.selectbox("Seleccione su Usuario / Chofer:", choferes_lista)
 
 patente_asignada, envios_disponibles = obtener_asignaciones_chofer(chofer_actual)
 
-# Control de estado para manejar el envío actual seleccionado
+# Control de estado para manejar el envío actual seleccionado y avanzar automáticamente
 if "envio_index" not in st.session_state:
     st.session_state.envio_index = 0
 
-# Asegurar que el índice no se pase del límite si cambian los datos en la planilla
 if st.session_state.envio_index >= len(envios_disponibles):
     st.session_state.envio_index = 0
 
@@ -95,6 +98,7 @@ with tab1:
     # Obtener el envío actual según el índice de la sesión
     envio_actual_dict = envios_disponibles[st.session_state.envio_index]
     envio_asignado = envio_actual_dict["envio"]
+    pedido_asignado = envio_actual_dict["pedido"]
     bultos_asignados = envio_actual_dict["bultos"]
 
     # Selector visual si hay múltiples envíos asignados por logística
@@ -105,21 +109,21 @@ with tab1:
             opciones_envios, 
             index=st.session_state.envio_index
         )
-        # Sincronizar índice si el usuario lo cambia manualmente en el selectbox
         st.session_state.envio_index = opciones_envios.index(envio_seleccionado)
         envio_actual_dict = envios_disponibles[st.session_state.envio_index]
         envio_asignado = envio_actual_dict["envio"]
+        pedido_asignado = envio_actual_dict["pedido"]
         bultos_asignados = envio_actual_dict["bultos"]
 
     with st.form("form_entregas"):
         fecha_actual = datetime.now().strftime("%Y-%m-%d")
         
-        # Campos protegidos / griseados (disabled=True)
+        # --- CAMPOS GRISEADOS Y BLOQUEADOS ---
         envio_n = st.text_input("Envío N° (Asignado por Logística)", value=envio_asignado, disabled=True)
         patente_s1 = st.text_input("Patente Asignada", value=patente_asignada, disabled=True)
-        
-        pedido_n = st.text_input("Pedido N°", value="PED-9988")
+        pedido_n = st.text_input("Pedido N°", value=pedido_asignado, disabled=True)
         cant_bultos = st.number_input("Cantidad de bultos", min_value=1, value=bultos_asignados, disabled=True)
+        # ------------------------------------
         
         estado_entrega = st.selectbox("Estado", ["ENTREGADO", "NO ENTREGADO"])
         
@@ -128,7 +132,6 @@ with tab1:
         forma_cobro = st.selectbox("Forma de cobro", ["Efectivo", "Transferencia", "Cheque", "Sin Cobro"])
         monto = st.number_input("Monto ($)", min_value=0.0, step=0.01)
         
-        # Botón de envío
         btn_enviar_1 = st.form_submit_button("ENVIAR ENTREGA")
         
         if btn_enviar_1:
