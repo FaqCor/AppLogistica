@@ -1,20 +1,17 @@
 import streamlit as st
 import gspread
 from google.oauth2.service_account import Credentials
-from googleapiclient.discovery import build
-from googleapiclient.http import MediaIoBaseUpload
-import io
 from datetime import datetime
+import base64
 
 # --- 1. CONFIGURACIÓN DE LA PÁGINA ---
 st.set_page_config(page_title="App Logística", page_icon="🚚", layout="centered")
 
-# --- 2. CONEXIÓN A GOOGLE SERVICES (CON SCOPES AMPLIADOS DE DRIVE) ---
+# --- 2. CONEXIÓN A GOOGLE SHEETS ---
 @st.cache_resource
 def init_connection():
-    # Amplitud total de permisos para Sheets y Drive
     scope = [
-        "https://www.googleapis.com/auth/spreadsheets",
+        "https://spreadsheets.google.com/feeds",
         "https://www.googleapis.com/auth/drive"
     ]
     
@@ -35,49 +32,16 @@ def init_connection():
     # ----------------------------------------------
 
     creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
-    client_gspread = gspread.authorize(creds)
-    
-    # Servicio de Google Drive para subir imágenes con permisos plenos
-    drive_service = build('drive', 'v3', credentials=creds)
-    
-    return client_gspread, drive_service
+    client = gspread.authorize(creds)
+    return client
 
-client, drive_service = init_connection()
+client = init_connection()
 
 @st.cache_resource
 def get_sheet():
     return client.open("sistema de control de flota")
 
 sheet = get_sheet()
-
-# --- FUNCIÓN PARA SUBIR ARCHIVO A GOOGLE DRIVE ---
-def subir_foto_a_drive(uploaded_file, chofer, patente):
-    try:
-        FOLDER_ID = "1THxT45-t-VFWU0JmWD2kR2WDCwmA9vdW" 
-        
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        nombre_archivo = f"Odometro_{chofer}_{patente}_{timestamp}.jpg"
-        
-        file_metadata = {
-            'name': nombre_archivo,
-            'parents': [FOLDER_ID]
-        }
-        
-        media = MediaIoBaseUpload(
-            io.BytesIO(uploaded_file.getvalue()),
-            mimetype=uploaded_file.type,
-            resumable=True
-        )
-        
-        file = drive_service.files().create(
-            body=file_metadata,
-            media_body=media,
-            fields='id, webViewLink'
-        ).execute()
-        
-        return file.get('webViewLink')
-    except Exception as e:
-        return f"Error al subir: {str(e)}"
 
 # --- 3. OBTENER ASIGNACIÓN DESDE LA PLANILLA ---
 def obtener_asignacion(chofer):
@@ -153,18 +117,24 @@ with tab2:
         btn_enviar_2 = st.form_submit_button("FINALIZAR Y ENVIAR CIERRE DE VIAJE")
         
         if btn_enviar_2:
-            url_foto = "Sin foto"
+            nombre_foto = "Sin foto"
             if foto_odometro is not None:
-                url_foto = subir_foto_a_drive(foto_odometro, chofer_actual, patente_asignada)
-            
+                # Genera un nombre de archivo único con la fecha, chofer y patente
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                nombre_foto = f"Odometro_{chofer_actual}_{patente_asignada}_{timestamp}.jpg"
+                
+                # Opcional: Si deseas guardar una vista previa o referencia del archivo cargado
+                # Mostramos la imagen de confirmación en el mismo momento en Streamlit
+                st.image(foto_odometro, caption=f"Foto subida por {chofer_actual}", width=200)
+
             try:
                 worksheet_cierres = sheet.worksheet("Cierres")
             except:
                 worksheet_cierres = sheet.add_worksheet(title="Cierres", rows=100, cols=10)
-                worksheet_cierres.append_row(["Fecha", "Chofer", "Patente", "Envio", "Finalizo Viaje", "Km Actual", "Observaciones", "Enlace Foto Odómetro"])
+                worksheet_cierres.append_row(["Fecha", "Chofer", "Patente", "Envio", "Finalizo Viaje", "Km Actual", "Observaciones", "Archivo Foto Odómetro"])
 
             worksheet_cierres.append_row([
                 fecha_cierre, chofer_actual, vehiculo_id, envio_cierre, finalizo_viaje, 
-                km_actual, observaciones, url_foto
+                km_actual, observaciones, nombre_foto
             ])
-            st.success("¡Cierre de viaje registrado y foto guardada en Google Drive con éxito!")
+            st.success("¡Cierre de viaje registrado con éxito en Google Sheets!")
