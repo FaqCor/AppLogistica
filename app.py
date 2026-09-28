@@ -94,7 +94,7 @@ chofer_en_url = params.get("chofer", None)
 
 if chofer_en_url and chofer_en_url in choferes_lista:
     chofer_actual = chofer_en_url
-    st.info(Sesion iniciada automáticamente para el chofer: **{chofer_actual}**)
+    st.info(f"Sesión iniciada automáticamente para el chofer: **{chofer_actual}**")
     # Opción para cambiar de usuario si lo desea
     if st.button("🔄 Cambiar de usuario"):
         st.query_params.clear()
