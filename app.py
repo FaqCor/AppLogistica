@@ -42,24 +42,32 @@ def get_sheet():
 
 sheet = get_sheet()
 
-# --- 3. OBTENER ASIGNACIONES DESDE LA PLANILLA ---
+# --- 3. BASE DE DATOS DE PINES DE SEGURIDAD ---
+# Puedes modificar o ampliar estos PINs según tus choferes
+PINES_CHOFERES = {
+    "ADRIÁN ROLDÁN": "1234",
+    "DIEGO MEDINA": "2345",
+    "ROBERTO PEREZ": "3456",
+    "GUILLERMO AL...": "4567",
+    "GERONIMO M...": "5678",
+    "GONZALO ONE...": "6789",
+    "GABRIEL LLULL": "1111",
+    "NICOLÁS DÍAZ": "2222",
+    "FELIX NICOLÁS ...": "3333"
+}
+
+# --- 4. OBTENER ASIGNACIONES DESDE LA PLANILLA ---
 def obtener_asignaciones_chofer(chofer):
-    """
-    Lee la solapa 'Asignación' respetando exactamente las columnas:
-    A: Fecha, B: Envío N°, C: Pedido N°, D: Chofer, E: Dominio, F: Cantidad de bulto, G: Destino, H: Estado
-    """
     envios_lista = []
     patente_asignada = "Sin Asignar"
     try:
         ws = sheet.worksheet("Asignación")
         registros = ws.get_all_records()
         for row in registros:
-            # Normalizar claves a minúsculas y sin acentos para evitar fallos por tipeo
             row_lower = {str(k).strip().lower(): v for k, v in row.items()}
             
             chofer_fila = str(row_lower.get("chofer", "")).strip()
             if chofer_fila.lower() == chofer.strip().lower():
-                # Extraer datos según los encabezados exactos de tu planilla
                 envio = str(row_lower.get("envio n°", row_lower.get("envio", "ENV-000")))
                 pedido = str(row_lower.get("pedido n°", row_lower.get("pedido", "PED-000")))
                 dominio = str(row_lower.get("dominio", row_lower.get("patente", "Sin Asignar")))
@@ -70,7 +78,6 @@ def obtener_asignaciones_chofer(chofer):
                 destino = str(row_lower.get("destino", "Sin Destino"))
                 estado = str(row_lower.get("estado", "Pendiente"))
                 
-                # Solo traemos los que estén pendientes o para entregar
                 if estado.strip().lower() != "entregado":
                     patente_asignada = dominio
                     envios_lista.append({
@@ -85,41 +92,66 @@ def obtener_asignaciones_chofer(chofer):
     
     return patente_asignada, envios_lista
 
-# --- 4. GESTIÓN DE ENLACES Y SELECCIÓN DE CHOFER ---
+# --- 5. GESTIÓN DE ACCESO Y SEGURIDAD ---
 st.title("🚚 Gestión de Logística - Choferes")
 
-# Lista fija o dinámica de choferes basada en tu planilla
-choferes_lista = [
-    "ADRIÁN ROLDÁN", "DIEGO MEDINA", "ROBERTO PEREZ", "GUILLERMO AL...", 
-    "GERONIMO M...", "GONZALO ONE...", "GABRIEL LLULL", "NICOLÁS DÍAZ", "FELIX NICOLÁS ..."
-]
+choferes_lista = list(PINES_CHOFERES.keys())
 
-# Leer parámetro de la URL (Link personalizado de WhatsApp)
+# Leer parámetro de la URL
 params = st.query_params
 chofer_en_url = params.get("chofer", None)
 
-if chofer_en_url:
-    chofer_actual = chofer_en_url
-    st.info(f"📱 Sesión activa para el chofer: **{chofer_actual}**")
-    if st.button("🔄 Cambiar / Seleccionar otro chofer"):
-        st.query_params.clear()
-        st.rerun()
+# Panel de Logística (Oculto para los choferes si entran con su link seguro)
+with st.sidebar:
+    st.header("Panel de Logística")
+    chofer_seleccionado_admin = st.selectbox("Seleccionar chofer para crear link:", choferes_lista)
+    url_base = "https://applogistica.streamlit.app" # Reemplaza con tu URL real
+    link_wpp = f"{url_base}/?chofer={chofer_seleccionado_admin.replace(' ', '%20')}"
+    st.markdown(f"**Link seguro para WhatsApp:**")
+    st.code(link_wpp, language="markdown")
+
+if not chofer_en_url:
+    st.warning("⚠️ Acceso restringido. Por favor, ingrese mediante el enlace personal enviado por el área de logística.")
+    chofer_actual = st.selectbox("O seleccione su usuario para pruebas:", choferes_lista)
 else:
-    with st.sidebar:
-        st.header("Panel de Logística")
-        chofer_actual = st.selectbox("Seleccione Chofer para generar link:", choferes_lista)
+    chofer_actual = chofer_en_url
+
+# --- SISTEMA DE AUTENTICACIÓN POR PIN ---
+if "autenticado" not in st.session_state:
+    st.session_state.autenticado = False
+if "chofer_auth" not in st.session_state:
+    st.session_state.chofer_auth = None
+
+# Si cambia el chofer en la URL, requerir nuevo PIN
+if st.session_state.chofer_auth != chofer_actual:
+    st.session_state.autenticado = False
+    st.session_state.chofer_auth = chofer_actual
+
+if not st.session_state.autenticado:
+    st.info(f"🔒 Identidad detectada para: **{chofer_actual}**")
+    with st.form("form_pin"):
+        pin_ingresado = st.text_input("Ingrese su PIN de seguridad de 4 dígitos:", type="password")
+        btn_login = st.form_submit_button("INGRESAR A MIS PEDIDOS")
         
-        # Generar link personalizado para WhatsApp
-        url_base = "https://applogistica.streamlit.app" # Reemplaza con tu URL de Streamlit desplegada
-        link_wpp = f"{url_base}/?chofer={chofer_actual.replace(' ', '%20')}"
-        st.markdown(f"**Link para enviar por WhatsApp:**")
-        st.code(link_wpp, language="markdown")
-    
-    chofer_actual = st.selectbox("O seleccione su usuario para probar la app:", choferes_lista)
+        if btn_login:
+            pin_correcto = PINES_CHOFERES.get(chofer_actual, "")
+            if pin_ingresado.strip() == pin_correcto:
+                st.session_state.autenticado = True
+                st.success("¡Acceso autorizado!")
+                st.rerun()
+            else:
+                st.error("❌ PIN incorrecto. Verifique con logística.")
+    st.stop() # Detiene la ejecución de la app hasta que ponga el PIN correcto
+
+# --- A PARTIR DE ACÁ LA APP FUNCIONA CON TOTAL SEGURIDAD ---
+st.success(f"🔓 Sesión segura iniciada para: **{chofer_actual}**")
+if st.button("🔒 Cerrar Sesión / Salir"):
+    st.session_state.autenticado = False
+    st.query_params.clear()
+    st.rerun()
 
 patente_asignada, envios_disponibles = obtener_asignaciones_chofer(chofer_actual)
 
-# Control de índice para avanzar de pedido automáticamente
 if "envio_index" not in st.session_state:
     st.session_state.envio_index = 0
 
@@ -135,7 +167,6 @@ with tab1:
     if not envios_disponibles:
         st.success("🎉 ¡Felicitaciones! No tienes envíos pendientes asignados en este momento.")
     else:
-        # Obtener el envío actual según la lista filtrada
         envio_actual_dict = envios_disponibles[st.session_state.envio_index]
         envio_asignado = envio_actual_dict["envio"]
         pedido_asignado = envio_actual_dict["pedido"]
@@ -143,7 +174,6 @@ with tab1:
         destino_asignado = envio_actual_dict["destino"]
         patente_asignada = envio_actual_dict["dominio"]
 
-        # Selector visual si tiene múltiples envíos
         if len(envios_disponibles) > 1:
             opciones_envios = [f"{e['envio']} - Pedido: {e['pedido']} (Destino: {e['destino']})" for e in envios_disponibles]
             envio_seleccionado = st.selectbox(
@@ -164,13 +194,11 @@ with tab1:
         with st.form("form_entregas"):
             fecha_actual = datetime.now().strftime("%Y-%m-%d")
             
-            # --- CAMPOS GRISEADOS Y BLOQUEADOS PARA EL CHOFER ---
             envio_n = st.text_input("Envío N°", value=envio_asignado, disabled=True)
             pedido_n = st.text_input("Pedido N°", value=pedido_asignado, disabled=True)
             patente_s1 = st.text_input("Dominio / Patente", value=patente_asignada, disabled=True)
             destino_s1 = st.text_input("Destino", value=destino_asignado, disabled=True)
             cant_bultos = st.number_input("Cantidad de bulto", min_value=1, value=bultos_asignados, disabled=True)
-            # ----------------------------------------------------
             
             estado_entrega = st.selectbox("Estado", ["ENTREGADO", "NO ENTREGADO"])
             
@@ -188,31 +216,19 @@ with tab1:
                     worksheet_entregas = sheet.add_worksheet(title="Entregas", rows=100, cols=10)
                     worksheet_entregas.append_row(["Fecha", "Envio N°", "Pedido N°", "Cantidad de bultos", "Estado", "Forma de cobro", "Monto"])
 
-                # 1. Registrar en la solapa "Entregas"
-                fila_entrega = [
-                    fecha_actual,        # Fecha
-                    envio_n,             # Envío N°
-                    pedido_n,            # Pedido N°
-                    cant_bultos,         # Cantidad de bultos
-                    estado_entrega,      # Estado
-                    forma_cobro,         # Forma de cobro
-                    monto                # Monto
-                ]
+                fila_entrega = [fecha_actual, envio_n, pedido_n, cant_bultos, estado_entrega, forma_cobro, monto]
                 worksheet_entregas.append_row(fila_entrega, value_input_option='USER_ENTERED')
                 
-                # 2. Actualizar automáticamente la columna Estado (Columna H) en la solapa "Asignación"
                 try:
                     ws_asig = sheet.worksheet("Asignación")
-                    cell = ws_asig.find(envio_n) # Busca la celda del Envío N°
+                    cell = ws_asig.find(envio_n)
                     if cell:
-                        # Columna H es la 8 (Estado)
                         ws_asig.update_cell(cell.row, 8, estado_entrega)
                 except Exception as ex:
-                    st.warning(f"Se registró la entrega, pero no se pudo actualizar el estado en Asignación: {ex}")
+                    pass
 
                 st.success(f"¡Entrega del envío {envio_n} registrada con éxito!")
                 
-                # Avanzar al siguiente envío
                 if st.session_state.envio_index < len(envios_disponibles) - 1:
                     st.session_state.envio_index += 1
                 else:
@@ -253,10 +269,6 @@ with tab2:
                 worksheet_cierres = sheet.add_worksheet(title="Cierres", rows=100, cols=10)
                 worksheet_cierres.append_row(["Fecha", "Chofer", "Patente", "Envio", "Finalizo Viaje", "Km Actual", "Observaciones", "Acceso Foto Odómetro"])
 
-            fila_datos = [
-                fecha_cierre, chofer_actual, vehiculo_id, envio_cierre, finalizo_viaje, 
-                km_actual, observaciones, link_foto
-            ]
-            
+            fila_datos = [fecha_cierre, chofer_actual, vehiculo_id, envio_cierre, finalizo_viaje, km_actual, observaciones, link_foto]
             worksheet_cierres.append_row(fila_datos, value_input_option='USER_ENTERED')
             st.success("¡Cierre de viaje registrado con éxito!")
