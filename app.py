@@ -109,7 +109,7 @@ if es_encargado:
     with st.sidebar:
         st.header("Panel de Logística")
         chofer_seleccionado_admin = st.selectbox("Seleccionar chofer para crear link:", choferes_lista)
-        url_base = "https://applogistica.streamlit.app" 
+        url_base = "applogistica-zcpbhxepee55agsgxq6rwd.streamlit.app" 
         
         # El link generado mantiene el parámetro ?admin para que tú no pierdas el panel al cambiar de chofer
         link_wpp = f"{url_base}/?chofer={chofer_seleccionado_admin.replace(' ', '%20')}"
