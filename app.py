@@ -43,7 +43,6 @@ def get_sheet():
 sheet = get_sheet()
 
 # --- 3. BASE DE DATOS DE PINES DE SEGURIDAD ---
-# Puedes modificar o ampliar estos PINs según tus choferes
 PINES_CHOFERES = {
     "ADRIÁN ROLDÁN": "1234",
     "DIEGO MEDINA": "2345",
@@ -97,18 +96,37 @@ st.title("🚚 Gestión de Logística - Choferes")
 
 choferes_lista = list(PINES_CHOFERES.keys())
 
-# Leer parámetro de la URL
+# Leer parámetros de la URL de forma segura usando st.query_params
 params = st.query_params
 chofer_en_url = params.get("chofer", None)
 
-# Panel de Logística (Oculto para los choferes si entran con su link seguro)
-with st.sidebar:
-    st.header("Panel de Logística")
-    chofer_seleccionado_admin = st.selectbox("Seleccionar chofer para crear link:", choferes_lista)
-    url_base = "https://applogistica.streamlit.app" # Reemplaza con tu URL real
-    link_wpp = f"{url_base}/?chofer={chofer_seleccionado_admin.replace(' ', '%20')}"
-    st.markdown(f"**Link seguro para WhatsApp:**")
-    st.code(link_wpp, language="markdown")
+# CLAVE SECRETA ADMIN: Puedes cambiar "logadmin2026" por la contraseña que quieras en la URL
+es_encargado = params.get("admin", None) == "logadmin2026"
+
+# --- PANEL DE LOGÍSTICA COMPLETAMENTE PROTEGIDO ---
+# Solo se dibuja en la pantalla si entras con el enlace de administrador
+if es_encargado:
+    with st.sidebar:
+        st.header("Panel de Logística")
+        chofer_seleccionado_admin = st.selectbox("Seleccionar chofer para crear link:", choferes_lista)
+        url_base = "https://applogistica.streamlit.app" 
+        
+        # El link generado mantiene el parámetro ?admin para que tú no pierdas el panel al cambiar de chofer
+        link_wpp = f"{url_base}/?chofer={chofer_seleccionado_admin.replace(' ', '%20')}"
+        st.markdown(f"**Link seguro para WhatsApp:**")
+        st.code(link_wpp, language="markdown")
+else:
+    # Fuerza a Streamlit a ocultar por completo la barra lateral si no es el administrador
+    st.markdown(
+        """
+        <style>
+            [data-testid="stSidebar"] {
+                display: none;
+            }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
 
 if not chofer_en_url:
     st.warning("⚠️ Acceso restringido. Por favor, ingrese mediante el enlace personal enviado por el área de logística.")
@@ -122,7 +140,6 @@ if "autenticado" not in st.session_state:
 if "chofer_auth" not in st.session_state:
     st.session_state.chofer_auth = None
 
-# Si cambia el chofer en la URL, requerir nuevo PIN
 if st.session_state.chofer_auth != chofer_actual:
     st.session_state.autenticado = False
     st.session_state.chofer_auth = chofer_actual
@@ -141,9 +158,9 @@ if not st.session_state.autenticado:
                 st.rerun()
             else:
                 st.error("❌ PIN incorrecto. Verifique con logística.")
-    st.stop() # Detiene la ejecución de la app hasta que ponga el PIN correcto
+    st.stop()
 
-# --- A PARTIR DE ACÁ LA APP FUNCIONA CON TOTAL SEGURIDAD ---
+# --- FUNCIONAMIENTO DE LA APP AUTENTICADA ---
 st.success(f"🔓 Sesión segura iniciada para: **{chofer_actual}**")
 if st.button("🔒 Cerrar Sesión / Salir"):
     st.session_state.autenticado = False
