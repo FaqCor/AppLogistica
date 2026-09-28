@@ -129,9 +129,11 @@ else:
     )
 
 if not chofer_en_url:
-    st.warning("⚠️ Acceso restringido. Por favor, ingrese mediante el enlace personal enviado por el área de logística.")
-    chofer_actual = st.selectbox("O seleccione su usuario para pruebas:", choferes_lista)
+    # Mensaje de bienvenida amigable para el link general de la comunidad
+    st.info("👋 **Bienvenido al Sistema de Logística.**")
+    chofer_actual = st.selectbox("Seleccione su Nombre y Apellido para ingresar:", choferes_lista)
 else:
+    # Si por alguna razón usan un link viejo con el nombre incluido, sigue funcionando
     chofer_actual = chofer_en_url
 
 # --- SISTEMA DE AUTENTICACIÓN POR PIN ---
