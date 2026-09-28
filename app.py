@@ -2,6 +2,8 @@ import streamlit as st
 import gspread
 from google.oauth2.service_account import Credentials
 from datetime import datetime
+from PIL import Image
+import io
 
 # --- 1. CONFIGURACIÓN DE LA PÁGINA ---
 st.set_page_config(page_title="App Logística - Choferes", page_icon="🚚", layout="centered")
@@ -96,27 +98,19 @@ st.title("🚚 Gestión de Logística - Choferes")
 
 choferes_lista = list(PINES_CHOFERES.keys())
 
-# Leer parámetros de la URL de forma segura usando st.query_params
 params = st.query_params
 chofer_en_url = params.get("chofer", None)
-
-# CLAVE SECRETA ADMIN: Puedes cambiar "logadmin2026" por la contraseña que quieras en la URL
 es_encargado = params.get("admin", None) == "logadmin2026"
 
-# --- PANEL DE LOGÍSTICA COMPLETAMENTE PROTEGIDO ---
-# Solo se dibuja en la pantalla si entras con el enlace de administrador
 if es_encargado:
     with st.sidebar:
         st.header("Panel de Logística")
         chofer_seleccionado_admin = st.selectbox("Seleccionar chofer para crear link:", choferes_lista)
         url_base = "applogistica-zcpbhxepee55agsgxq6rwd.streamlit.app" 
-        
-        # El link generado mantiene el parámetro ?admin para que tú no pierdas el panel al cambiar de chofer
         link_wpp = f"{url_base}/?chofer={chofer_seleccionado_admin.replace(' ', '%20')}"
         st.markdown(f"**Link seguro para WhatsApp:**")
         st.code(link_wpp, language="markdown")
 else:
-    # Fuerza a Streamlit a ocultar por completo la barra lateral si no es el administrador
     st.markdown(
         """
         <style>
@@ -129,11 +123,9 @@ else:
     )
 
 if not chofer_en_url:
-    # Mensaje de bienvenida amigable para el link general de la comunidad
     st.info("👋 **Bienvenido al Sistema de Logística.**")
     chofer_actual = st.selectbox("Seleccione su Nombre y Apellido para ingresar:", choferes_lista)
 else:
-    # Si por alguna razón usan un link viejo con el nombre incluido, sigue funcionando
     chofer_actual = chofer_en_url
 
 # --- SISTEMA DE AUTENTICACIÓN POR PIN ---
@@ -255,32 +247,44 @@ with tab1:
                 
                 st.rerun()
 
-# --- SOLAPA 2: CIERRE DE VIAJE ---
+# --- SOLAPA 2: CIERRE DE VIAJE SIMPLIFICADO ---
 with tab2:
     st.subheader("Cierre de Viaje y Rendición")
     
     with st.form("form_cierre"):
         fecha_cierre = datetime.now().strftime("%Y-%m-%d")
         
-        vehiculo_id = st.text_input("Dominio del Vehículo", value=patente_asignada, disabled=True)
-        envio_cierre = st.text_input("Envío N° Actual", value=envios_disponibles[st.session_state.envio_index]["envio"] if envios_disponibles else "ENV-000", disabled=True)
-        
-        finalizo_viaje = st.selectbox("¿Finalizó viaje?", ["Sí", "No"])
-        km_actual = st.number_input("Km Actual del Odómetro", min_value=0.0, value=15250.0, step=1.0)
-        
-        foto_odometro = st.file_uploader("Subir foto del odómetro", type=["jpg", "jpeg", "png"])
+        # Hereda automáticamente la patente y el envío actual de la Solapa 1
+        vehiculo_id = st.text_input("Dominio del Vehículo (Automático)", value=patente_asignada, disabled=True)
+        envio_cierre = st.text_input("Envío N° Actual (Automático)", value=envios_disponibles[st.session_state.envio_index]["envio"] if envios_disponibles else "ENV-000", disabled=True)
         
         st.markdown("---")
-        st.markdown("### Novedades del Viaje")
-        observaciones = st.text_area("Observaciones", placeholder="Ej: Tránsito demorado, novedades...")
+        finalizo_viaje = st.selectbox("¿Finalizó viaje?", ["Sí", "No"])
+        km_actual = st.number_input("Km Actual del Odómetro", min_value=0.0, value=0.0, step=1.0)
+        
+        # Subida de foto con control de memoria RAM optimizado
+        foto_odometro = st.file_uploader("Subir foto del odómetro", type=["jpg", "jpeg", "png"])
         
         btn_enviar_2 = st.form_submit_button("FINALIZAR Y ENVIAR CIERRE DE VIAJE")
         
         if btn_enviar_2:
             link_foto = "Sin foto"
             if foto_odometro is not None:
-                folder_id = "1THxT45-t-VFWU0JmWD2kR2WDCwmA9vdW"
-                link_foto = f'=HYPERLINK("https://drive.google.com/drive/folders/{folder_id}", "Abrir Carpeta Drive")'
+                try:
+                    # Compresión automática para evitar error de memoria insuficiente
+                    img = Image.open(foto_odometro)
+                    img.thumbnail((800, 800))
+                    if img.mode in ("RGBA", "P"):
+                        img = img.convert("RGB")
+                    
+                    buffered = io.BytesIO()
+                    img.save(buffered, format="JPEG", quality=85)
+                    
+                    folder_id = "1THxT45-t-VFWU0JmWD2kR2WDCwmA9vdW"
+                    link_foto = f'=HYPERLINK("https://drive.google.com/drive/folders/{folder_id}", "Abrir Carpeta Drive")'
+                except Exception as img_err:
+                    link_foto = "Error procesando imagen"
+                    st.warning(f"No se pudo optimizar la foto: {img_err}")
 
             try:
                 worksheet_cierres = sheet.worksheet("Cierres")
@@ -288,6 +292,17 @@ with tab2:
                 worksheet_cierres = sheet.add_worksheet(title="Cierres", rows=100, cols=10)
                 worksheet_cierres.append_row(["Fecha", "Chofer", "Patente", "Envio", "Finalizo Viaje", "Km Actual", "Observaciones", "Acceso Foto Odómetro"])
 
-            fila_datos = [fecha_cierre, chofer_actual, vehiculo_id, envio_cierre, finalizo_viaje, km_actual, observaciones, link_foto]
+            # Estructura exacta ordenada según tu solapa Cierres
+            fila_datos = [
+                fecha_cierre,      # A: Fecha
+                chofer_actual,     # B: Chofer
+                vehiculo_id,       # C: Patente (heredada de la solapa 1)
+                envio_cierre,      # D: Envio (heredado de la solapa 1)
+                finalizo_viaje,    # E: Finalizo Viaje
+                km_actual,         # F: Km Actual
+                "Sin observaciones", # G: Campo por defecto (o libre si deseas agregarlo)
+                link_foto          # H: Acceso Foto Odómetro
+            ]
+            
             worksheet_cierres.append_row(fila_datos, value_input_option='USER_ENTERED')
-            st.success("¡Cierre de viaje registrado con éxito!")
+            st.success("¡Cierre de viaje registrado con éxito en Google Sheets!")
