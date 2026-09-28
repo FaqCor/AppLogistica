@@ -14,21 +14,12 @@ def init_connection():
         "https://www.googleapis.com/auth/drive"
     ]
     
-    # Convertimos los secretos a un diccionario normal
+    # Cargamos directamente las credenciales usando el diccionario limpio de st.secrets
     creds_dict = dict(st.secrets["gcp_service_account"])
     
-    # Limpiamos y formateamos la llave privada automáticamente
-    pk = creds_dict["private_key"]
-    pk = pk.replace("\\n", "\n")
-    
-    if "-----BEGIN PRIVATE KEY-----" in pk and "-----END PRIVATE KEY-----" in pk:
-        if "\n" not in pk.strip().replace("-----BEGIN PRIVATE KEY-----", "").replace("-----END PRIVATE KEY-----", ""):
-            body = pk.replace("-----BEGIN PRIVATE KEY-----", "").replace("-----END PRIVATE KEY-----", "").strip()
-            body = "".join(body.split())
-            formatted_body = "\n".join(body[i:i+64] for i in range(0, len(body), 64))
-            pk = f"-----BEGIN PRIVATE KEY-----\n{formatted_body}\n-----END PRIVATE KEY-----\n"
-            
-    creds_dict["private_key"] = pk
+    # Aseguramos el reemplazo limpio de los saltos de línea escapados
+    if "private_key" in creds_dict:
+        creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
 
     creds = Credentials.from_service_account_info(
         creds_dict, 
