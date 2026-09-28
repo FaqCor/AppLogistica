@@ -1,15 +1,20 @@
 import streamlit as st
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
+from datetime import datetime
 
+# --- 1. CONFIGURACIÓN DE LA PÁGINA (DEBE IR PRIMERO) ---
+st.set_page_config(page_title="App Logística", page_icon="🚚", layout="centered")
+
+# --- 2. CONEXIÓN A GOOGLE SHEETS ---
 def init_connection():
-    # Cargamos las credenciales desde los Secrets de Streamlit Cloud
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-    
     creds_dict = dict(st.secrets["gcp_service_account"])
-    # Esto asegura que los saltos de línea de la clave se lean correctamente
-    creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
     
+    # Asegura que los saltos de línea de la clave privada se lean correctamente
+    if "private_key" in creds_dict:
+        creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
+        
     creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
     client = gspread.authorize(creds)
     return client
@@ -19,22 +24,15 @@ client = init_connection()
 # Usamos caché para la hoja para evitar agotar el límite de la API de Google
 @st.cache_resource
 def get_sheet():
-    # Si prefieres evitar fallos de nombre, puedes reemplazar "sistema de control de flota" 
-    # por client.open_by_url("TU_URL_COMPLETA_DE_GOOGLE_SHEETS")
     return client.open("sistema de control de flota")
 
 sheet = get_sheet()
 
-
-client = init_connection()
-sheet = client.open("sistema de control de flota")# Nombre de tu Google Sheet
-
-# --- 2. INTERFAZ GENERAL DE LA APP ---
-st.set_page_config(page_title="App Logística", page_icon="🚚", layout="centered")
+# --- 3. INTERFAZ GENERAL DE LA APP ---
 st.title("🚚 Gestión de Logística - Choferes")
 
 # Selector de Chofer (Identificación inicial)
-choferes_lista = ["Juan Pérez", "Carlos Gómez", "Mario Ruiz"] # Ejemplo temporal
+choferes_lista = ["Juan Pérez", "Carlos Gómez", "Mario Ruiz"]
 chofer_actual = st.selectbox("Seleccione su Usuario / Chofer:", choferes_lista)
 
 # Pestañas de la aplicación
@@ -70,61 +68,9 @@ with tab1:
             ])
             st.success("¡Entrega registrada y enviada a Google Sheets con éxito!")
 
-import os
-from datetime import datetime
-
 # ==========================================
-# SECCIÓN: CIERRE DE VIAJE
+# SOLAPA 2: CIERRE DE VIAJE
 # ==========================================
-st.subheader("Cierre de Viaje y Odómetro")
-
-# Aquí van tus campos actuales de entrada (ejemplo)
-# km_actual = st.number_input("Kilometraje actual", min_value=0)
-# imagen_subida = st.file_uploader("Subir foto del odómetro", type=["jpg", "jpeg", "png"])
-
-if st.button("Registrar Cierre de Viaje"):
-    
-    # 1. Asegurarnos de que la carpeta local exista
-    carpeta_fotos = "fotos_odometro"
-    os.makedirs(carpeta_fotos, exist_ok=True)
-    
-    url_o_enlace = ""
-    
-    # 2. Guardar la imagen si el usuario subió una
-    if imagen_subida is not None:
-        # Creamos un nombre único usando la fecha y hora actual
-        timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")
-        nombre_archivo = f"odometro_{timestamp_str}_{imagen_subida.name}"
-        ruta_completa = os.path.join(carpeta_fotos, nombre_archivo)
-        
-        # Guardar el archivo físicamente en la carpeta local
-        with open(ruta_completa, "wb") as f:
-            f.write(imagen_subida.getbuffer())
-            
-        # 3. Crear la fórmula de Google Sheets para el enlace cliqueable
-        ruta_absoluta = os.path.abspath(ruta_completa).replace("\\", "/")
-        url_o_enlace = f'=HYPERLINK("file:///{ruta_absoluta}", "Ver foto")'
-    else:
-        url_o_enlace = "Sin foto"
-
-    # 4. Preparar los datos y enviarlos a Google Sheets
-    # Reemplaza 'hoja' por el objeto que uses para conectar con tu Google Sheet (ej: sheet.append_row(...))
-    try:
-        # Ejemplo de los datos que guardas en la fila:
-        datos_fila = [
-            str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")), # Fecha y hora
-            # vehiculo,       # <--- tu variable de vehículo
-            # chofer,         # <--- tu variable de chofer
-            # km_actual,      # <--- tu variable de km
-            url_o_enlace      # El enlace a la foto o texto "Sin foto"
-        ]
-        
-        # Ejecutas el comando para insertar en tu hoja (descomenta según tu librería, ej: gspread)
-        # hoja.append_row(datos_fila, value_input_option='USER_ENTERED') 
-        # ¡Ojo! Es MUY IMPORTANTE usar value_input_option='USER_ENTERED' para que 
-        # Google Sheets interprete el '=HYPERLINK(...)' como una fórmula y no como texto plano.
-        
-        st.success("¡Cierre de viaje registrado con éxito y foto guardada localmente!")
-        
-    except Exception as e:
-        st.error(f"Error al registrar los datos en Google Sheets: {e}")
+with tab2:
+    st.subheader("Cierre de Viaje")
+    st.write("Próximamente las opciones para el cierre de viaje.")
