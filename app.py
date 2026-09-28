@@ -1,27 +1,28 @@
 import streamlit as st
 import gspread
-from oauth2client.service_account import ServiceAccountCredentials
+from google.oauth2.service_account import Credentials
 from datetime import datetime
 
 # --- 1. CONFIGURACIÓN DE LA PÁGINA (DEBE IR PRIMERO) ---
 st.set_page_config(page_title="App Logística", page_icon="🚚", layout="centered")
 
-# --- 2. CONEXIÓN A GOOGLE SHEETS ---
+# --- 2. CONEXIÓN A GOOGLE SHEETS (MODO MODERNO Y SEGURO) ---
+@st.cache_resource
 def init_connection():
-    scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-    creds_dict = dict(st.secrets["gcp_service_account"])
-    
-    # Asegura que los saltos de línea de la clave privada se lean correctamente
-    if "private_key" in creds_dict:
-        creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
-        
-    creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+    scope = [
+        "https://spreadsheets.google.com/feeds",
+        "https://www.googleapis.com/auth/drive"
+    ]
+    # Cargamos directamente las credenciales desde los secretos usando google.oauth2
+    creds = Credentials.from_service_account_info(
+        st.secrets["gcp_service_account"], 
+        scopes=scope
+    )
     client = gspread.authorize(creds)
     return client
 
 client = init_connection()
 
-# Usamos caché para la hoja para evitar agotar el límite de la API de Google
 @st.cache_resource
 def get_sheet():
     return client.open("sistema de control de flota")
@@ -61,7 +62,6 @@ with tab1:
         
         if btn_enviar_1:
             worksheet_entregas = sheet.worksheet("Entregas")
-            # Columnas exactas: Fecha | Envio N° | Pedido N° | Cantidad de bultos | Estado | Forma de cobro | Monto
             worksheet_entregas.append_row([
                 fecha_actual, envio_n, pedido_n, cant_bultos, 
                 estado_entrega, forma_cobro, monto
