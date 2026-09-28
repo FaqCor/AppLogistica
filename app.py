@@ -6,8 +6,9 @@ def init_connection():
     # Cargamos las credenciales desde los Secrets de Streamlit Cloud
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
     
-    # Convertimos los secretos de Streamlit a un diccionario estándar de Python
     creds_dict = dict(st.secrets["gcp_service_account"])
+    # Esto asegura que los saltos de línea de la clave se lean correctamente
+    creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
     
     creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
     client = gspread.authorize(creds)
