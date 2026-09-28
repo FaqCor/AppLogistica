@@ -42,11 +42,28 @@ def get_sheet():
 
 sheet = get_sheet()
 
-# --- 3. INTERFAZ GENERAL DE LA APP ---
+# --- 3. OBTENER ASIGNACIÓN DESDE LA PLANILLA ---
+def obtener_asignacion(chofer):
+    try:
+        ws = sheet.worksheet("Asignaciones")
+        registros = ws.get_all_records()
+        for row in registros:
+            # Compara el nombre del chofer (asegúrate de que coincida con la columna "Chofer")
+            if str(row.get("Chofer", "")).strip().lower() == chofer.strip().lower():
+                return str(row.get("Patente", "Sin Asignar")), str(row.get("Envio", "ENV-000"))
+    except Exception as e:
+        # Si la hoja no existe o está vacía, devuelve valores por defecto
+        pass
+    return "Sin Asignar", "ENV-000"
+
+# --- 4. INTERFAZ GENERAL DE LA APP ---
 st.title("🚚 Gestión de Logística - Choferes")
 
 choferes_lista = ["Juan Pérez", "Carlos Gómez", "Mario Ruiz"]
 chofer_actual = st.selectbox("Seleccione su Usuario / Chofer:", choferes_lista)
+
+# Buscar patente y envío asignados a este chofer en la hoja "Asignaciones"
+patente_asignada, envio_asignado = obtener_asignacion(chofer_actual)
 
 tab1, tab2 = st.tabs(["📦 Solapa 1: Entregas", "📊 Solapa 2: Cierre de Viaje"])
 
@@ -56,9 +73,13 @@ with tab1:
     
     with st.form("form_entregas"):
         fecha_actual = datetime.now().strftime("%Y-%m-%d")
-        envio_n = st.text_input("Envío N° (Automático)", value="ENV-001", disabled=True)
-        pedido_n = st.text_input("Pedido N° (Automático)", value="PED-9988", disabled=True)
-        cant_bultos = st.number_input("Cantidad de bultos", min_value=1, value=4, disabled=True)
+        
+        # Campos automáticos y bloqueados traídos de Google Sheets
+        envio_n = st.text_input("Envío N° (Asignado por Logística)", value=envio_asignado, disabled=True)
+        patente_s1 = st.text_input("Patente Asignada", value=patente_asignada, disabled=True)
+        
+        pedido_n = st.text_input("Pedido N°", value="PED-9988")
+        cant_bultos = st.number_input("Cantidad de bultos", min_value=1, value=4)
         
         estado_entrega = st.selectbox("Estado", ["ENTREGADO", "NO ENTREGADO"])
         
@@ -72,7 +93,7 @@ with tab1:
         if btn_enviar_1:
             worksheet_entregas = sheet.worksheet("Entregas")
             worksheet_entregas.append_row([
-                fecha_actual, chofer_actual, envio_n, pedido_n, cant_bultos, 
+                fecha_actual, chofer_actual, patente_s1, envio_n, pedido_n, cant_bultos, 
                 estado_entrega, forma_cobro, monto
             ])
             st.success("¡Entrega registrada y enviada a Google Sheets con éxito!")
@@ -83,28 +104,36 @@ with tab2:
     
     with st.form("form_cierre"):
         fecha_cierre = datetime.now().strftime("%Y-%m-%d")
-        vehiculo_id = st.text_input("ID o Patente del Vehículo", value="AB-123-CD")
-        km_inicial = st.number_input("Kilometraje Inicial", min_value=0.0, value=15000.0)
-        km_final = st.number_input("Kilometraje Final", min_value=0.0, value=15250.0)
+        
+        # Patente y Envío bloqueados traídos de Google Sheets
+        vehiculo_id = st.text_input("Patente del Vehículo (Asignada)", value=patente_asignada, disabled=True)
+        envio_cierre = st.text_input("Envío N° (Asignado)", value=envio_asignado, disabled=True)
+        
+        finalizo_viaje = st.selectbox("¿Finalizó viaje?", ["Sí", "No"])
+        km_actual = st.number_input("Km Actual del Odómetro", min_value=0.0, value=15250.0, step=1.0)
+        
+        # Subir foto del odómetro
+        foto_odometro = st.file_uploader("Subir foto del odómetro", type=["jpg", "jpeg", "png"])
         
         st.markdown("---")
         st.markdown("### Rendición Económica y Novedades")
         efectivo_rendido = st.number_input("Total Efectivo a Rendir ($)", min_value=0.0, step=0.01)
-        observaciones = st.text_area("Observaciones del Viaje (Incidentes, demoras, etc.)", placeholder="Ej: Tránsito demorado en zona norte, cliente ausente en parada 3...")
+        observaciones = st.text_area("Observaciones del Viaje", placeholder="Ej: Tránsito demorado, novedades...")
         
         btn_enviar_2 = st.form_submit_button("FINALIZAR Y ENVIAR CIERRE DE VIAJE")
         
         if btn_enviar_2:
-            # Nota: Asegúrate de crear una pestaña en tu Google Sheets que se llame exactamente "Cierres"
             try:
                 worksheet_cierres = sheet.worksheet("Cierres")
             except:
-                # Si no existe la pestaña, puedes cambiar esto o crearla manualmente en Google Sheets
                 worksheet_cierres = sheet.add_worksheet(title="Cierres", rows=100, cols=10)
-                worksheet_cierres.append_row(["Fecha", "Chofer", "Vehículo", "Km Inicial", "Km Final", "Efectivo Rendido", "Observaciones"])
+                worksheet_cierres.append_row(["Fecha", "Chofer", "Patente", "Envio", "Finalizo Viaje", "Km Actual", "Efectivo Rendido", "Observaciones", "Foto Odómetro"])
+
+            # Nota: Como Google Sheets guarda texto, guardaremos el nombre del archivo de foto si se subió, o "Sin foto"
+            nombre_foto = foto_odometro.name if foto_odometro is not None else "Sin foto"
 
             worksheet_cierres.append_row([
-                fecha_cierre, chofer_actual, vehiculo_id, km_inicial, 
-                km_final, efectivo_rendido, observaciones
+                fecha_cierre, chofer_actual, vehiculo_id, envio_cierre, finalizo_viaje, 
+                km_actual, efectivo_rendido, observaciones, nombre_foto
             ])
             st.success("¡Cierre de viaje registrado y guardado en Google Sheets con éxito!")
