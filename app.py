@@ -4,7 +4,7 @@ from google.oauth2.service_account import Credentials
 from datetime import datetime
 
 # --- 1. CONFIGURACIÓN DE LA PÁGINA ---
-st.set_page_config(page_title="App Logística", page_icon="🚚", layout="centered")
+st.set_page_config(page_title="App Logística - Choferes", page_icon="🚚", layout="centered")
 
 # --- 2. CONEXIÓN A GOOGLE SHEETS ---
 @st.cache_resource
@@ -45,73 +45,85 @@ sheet = get_sheet()
 # --- 3. OBTENER ASIGNACIONES DESDE LA PLANILLA ---
 def obtener_asignaciones_chofer(chofer):
     """
-    Lee la solapa 'Asignación' y extrae todos los envíos correspondientes al chofer.
-    Busca de manera flexible las columnas sin importar variaciones de nombres.
+    Lee la solapa 'Asignación' respetando exactamente las columnas:
+    A: Fecha, B: Envío N°, C: Pedido N°, D: Chofer, E: Dominio, F: Cantidad de bulto, G: Destino, H: Estado
     """
-    patente_asignada = "Sin Asignar"
     envios_lista = []
+    patente_asignada = "Sin Asignar"
     try:
         ws = sheet.worksheet("Asignación")
         registros = ws.get_all_records()
         for row in registros:
-            # Normalizar claves del diccionario a minúsculas para evitar errores
+            # Normalizar claves a minúsculas y sin acentos para evitar fallos por tipeo
             row_lower = {str(k).strip().lower(): v for k, v in row.items()}
             
             chofer_fila = str(row_lower.get("chofer", "")).strip()
             if chofer_fila.lower() == chofer.strip().lower():
-                # Buscar campos con distintas posibles variantes de nombres de columnas
-                patente = str(row_lower.get("patente", row_lower.get("dominio", "Sin Asignar")))
-                envio = str(row_lower.get("envio", row_lower.get("n° envio", row_lower.get("nro envio", "ENV-000"))))
-                pedido = str(row_lower.get("pedido", row_lower.get("pedido n°", row_lower.get("n° ord pedido", "PED-9988"))))
-                destino = str(row_lower.get("destino", "Sin Destino"))
+                # Extraer datos según los encabezados exactos de tu planilla
+                envio = str(row_lower.get("envio n°", row_lower.get("envio", "ENV-000")))
+                pedido = str(row_lower.get("pedido n°", row_lower.get("pedido", "PED-000")))
+                dominio = str(row_lower.get("dominio", row_lower.get("patente", "Sin Asignar")))
                 
-                bultos_raw = row_lower.get("bultos", row_lower.get("peso (kg)", 1))
+                bultos_raw = row_lower.get("cantidad de bulto", row_lower.get("bultos", 1))
                 bultos = int(bultos_raw) if str(bultos_raw).isdigit() else 1
                 
-                patente_asignada = patente
-                envios_lista.append({
-                    "envio": envio,
-                    "pedido": pedido,
-                    "bultos": bultos,
-                    "destino": destino
-                })
+                destino = str(row_lower.get("destino", "Sin Destino"))
+                estado = str(row_lower.get("estado", "Pendiente"))
+                
+                # Solo traemos los que estén pendientes o para entregar
+                if estado.strip().lower() != "entregado":
+                    patente_asignada = dominio
+                    envios_lista.append({
+                        "envio": envio,
+                        "pedido": pedido,
+                        "bultos": bultos,
+                        "destino": destino,
+                        "dominio": dominio
+                    })
     except Exception as e:
         st.error(f"Error al leer la solapa Asignación: {e}")
     
-    if not envios_lista:
-        envios_lista = [{"envio": "ENV-000", "pedido": "PED-9988", "bultos": 1, "destino": "Salta"}]
-        
     return patente_asignada, envios_lista
 
-# --- 4. INTERFAZ GENERAL DE LA APP Y SOPORTE DE LINKS PERSONALIZADOS ---
+# --- 4. GESTIÓN DE ENLACES Y SELECCIÓN DE CHOFER ---
 st.title("🚚 Gestión de Logística - Choferes")
 
-choferes_lista = ["Juan Pérez", "Carlos Gómez", "Mario Ruiz", "Matias", "Carlos", "Miguel", "Enrique", "Julio", "Rodrigo", "Wilson"]
+# Lista fija o dinámica de choferes basada en tu planilla
+choferes_lista = [
+    "ADRIÁN ROLDÁN", "DIEGO MEDINA", "ROBERTO PEREZ", "GUILLERMO AL...", 
+    "GERONIMO M...", "GONZALO ONE...", "GABRIEL LLULL", "NICOLÁS DÍAZ", "FELIX NICOLÁS ..."
+]
 
-# Leer si la URL trae un chofer por parámetro (Ej: tu-app.streamlit.app/?chofer=Juan%20Pérez)
+# Leer parámetro de la URL (Link personalizado de WhatsApp)
 params = st.query_params
 chofer_en_url = params.get("chofer", None)
 
-if chofer_en_url and chofer_en_url in choferes_lista:
+if chofer_en_url:
     chofer_actual = chofer_en_url
-    st.info(f"Sesión iniciada automáticamente para el chofer: **{chofer_actual}**")
-    # Opción para cambiar de usuario si lo desea
-    if st.button("🔄 Cambiar de usuario"):
+    st.info(f"📱 Sesión activa para el chofer: **{chofer_actual}**")
+    if st.button("🔄 Cambiar / Seleccionar otro chofer"):
         st.query_params.clear()
         st.rerun()
 else:
-    chofer_actual = st.selectbox("Seleccione su Usuario / Chofer:", choferes_lista)
-    # Mostrar el link personalizado que el logístico puede copiar y enviar
-    link_personalizado = f"https://tu-aplicacion.streamlit.app/?chofer={chofer_actual.replace(' ', '%20')}"
-    st.caption(f"🔗 **Link para enviar por WhatsApp a {chofer_actual}:** `{link_personalizado}`")
+    with st.sidebar:
+        st.header("Panel de Logística")
+        chofer_actual = st.selectbox("Seleccione Chofer para generar link:", choferes_lista)
+        
+        # Generar link personalizado para WhatsApp
+        url_base = "https://applogistica.streamlit.app" # Reemplaza con tu URL de Streamlit desplegada
+        link_wpp = f"{url_base}/?chofer={chofer_actual.replace(' ', '%20')}"
+        st.markdown(f"**Link para enviar por WhatsApp:**")
+        st.code(link_wpp, language="markdown")
+    
+    chofer_actual = st.selectbox("O seleccione su usuario para probar la app:", choferes_lista)
 
 patente_asignada, envios_disponibles = obtener_asignaciones_chofer(chofer_actual)
 
-# Control de estado para avanzar automáticamente de envío
+# Control de índice para avanzar de pedido automáticamente
 if "envio_index" not in st.session_state:
     st.session_state.envio_index = 0
 
-if st.session_state.envio_index >= len(envios_disponibles):
+if st.session_state.envio_index >= len(envios_disponibles) and len(envios_disponibles) > 0:
     st.session_state.envio_index = 0
 
 tab1, tab2 = st.tabs(["📦 Solapa 1: Entregas", "📊 Solapa 2: Cierre de Viaje"])
@@ -120,80 +132,93 @@ tab1, tab2 = st.tabs(["📦 Solapa 1: Entregas", "📊 Solapa 2: Cierre de Viaje
 with tab1:
     st.subheader("Registro de Entrega")
     
-    # Filtrar envíos pendientes o mostrarlos todos en secuencia
-    envio_actual_dict = envios_disponibles[st.session_state.envio_index]
-    envio_asignado = envio_actual_dict["envio"]
-    pedido_asignado = envio_actual_dict["pedido"]
-    bultos_asignados = envio_actual_dict["bultos"]
-    destino_asignado = envio_actual_dict["destino"]
-
-    # Mostrar selector si tiene varios envíos asignados
-    if len(envios_disponibles) > 1:
-        opciones_envios = [f"{e['envio']} (Destino: {e['destino']})" for e in envios_disponibles]
-        envio_seleccionado = st.selectbox(
-            "Seleccione el Envío a procesar (Asignado por Logística):", 
-            opciones_envios, 
-            index=st.session_state.envio_index
-        )
-        # Sincronizar índice
-        st.session_state.envio_index = opciones_envios.index(envio_seleccionado)
+    if not envios_disponibles:
+        st.success("🎉 ¡Felicitaciones! No tienes envíos pendientes asignados en este momento.")
+    else:
+        # Obtener el envío actual según la lista filtrada
         envio_actual_dict = envios_disponibles[st.session_state.envio_index]
         envio_asignado = envio_actual_dict["envio"]
         pedido_asignado = envio_actual_dict["pedido"]
         bultos_asignados = envio_actual_dict["bultos"]
         destino_asignado = envio_actual_dict["destino"]
-    else:
-        st.info(f"📍 **Destino asignado:** {destino_asignado}")
+        patente_asignada = envio_actual_dict["dominio"]
 
-    with st.form("form_entregas"):
-        fecha_actual = datetime.now().strftime("%Y-%m-%d")
-        
-        # --- CAMPOS GRISEADOS Y BLOQUEADOS PARA EL CHOFER ---
-        envio_n = st.text_input("Envío N° (Asignado)", value=envio_asignado, disabled=True)
-        pedido_n = st.text_input("Pedido N° (Asignado)", value=pedido_asignado, disabled=True)
-        patente_s1 = st.text_input("Patente Asignada", value=patente_asignada, disabled=True)
-        destino_s1 = st.text_input("Destino", value=destino_asignado, disabled=True)
-        cant_bultos = st.number_input("Cantidad de bultos", min_value=1, value=bultos_asignados, disabled=True)
-        # ----------------------------------------------------
-        
-        estado_entrega = st.selectbox("Estado", ["ENTREGADO", "NO ENTREGADO"])
-        
-        st.markdown("---")
-        st.markdown("### Información de Cobro")
-        forma_cobro = st.selectbox("Forma de cobro", ["Efectivo", "Transferencia", "Cheque", "Sin Cobro"])
-        monto = st.number_input("Monto ($)", min_value=0.0, step=0.01)
-        
-        btn_enviar_1 = st.form_submit_button("ENVIAR ENTREGA")
-        
-        if btn_enviar_1:
-            try:
-                worksheet_entregas = sheet.worksheet("Entregas")
-            except:
-                worksheet_entregas = sheet.add_worksheet(title="Entregas", rows=100, cols=10)
-                worksheet_entregas.append_row(["Fecha", "Chofer", "Patente", "Envio", "Pedido", "Bultos", "Estado", "Forma Cobro", "Monto"])
+        # Selector visual si tiene múltiples envíos
+        if len(envios_disponibles) > 1:
+            opciones_envios = [f"{e['envio']} - Pedido: {e['pedido']} (Destino: {e['destino']})" for e in envios_disponibles]
+            envio_seleccionado = st.selectbox(
+                "Seleccione el Envío a procesar:", 
+                opciones_envios, 
+                index=st.session_state.envio_index
+            )
+            st.session_state.envio_index = opciones_envios.index(envio_seleccionado)
+            envio_actual_dict = envios_disponibles[st.session_state.envio_index]
+            envio_asignado = envio_actual_dict["envio"]
+            pedido_asignado = envio_actual_dict["pedido"]
+            bultos_asignados = envio_actual_dict["bultos"]
+            destino_asignado = envio_actual_dict["destino"]
+            patente_asignada = envio_actual_dict["dominio"]
+        else:
+            st.info(f"📍 **Destino Asignado:** {destino_asignado}")
 
-            # ORDEN EXACTO DE COLUMNAS COINCIDENTE CON TU PLANILLA
-            fila_entrega = [
-                fecha_actual,        # A: Fecha
-                envio_n,             # B:Envios N°
-                pedido_n,            # C:Pedido N°
-                cant_bultos,         # D: Cantidad de bultos
-                estado_entrega,      # E: Estado
-                forma_cobro,         # F: Forma de cobro
-                monto                # G: Monto                
+        with st.form("form_entregas"):
+            fecha_actual = datetime.now().strftime("%Y-%m-%d")
+            
+            # --- CAMPOS GRISEADOS Y BLOQUEADOS PARA EL CHOFER ---
+            envio_n = st.text_input("Envío N°", value=envio_asignado, disabled=True)
+            pedido_n = st.text_input("Pedido N°", value=pedido_asignado, disabled=True)
+            patente_s1 = st.text_input("Dominio / Patente", value=patente_asignada, disabled=True)
+            destino_s1 = st.text_input("Destino", value=destino_asignado, disabled=True)
+            cant_bultos = st.number_input("Cantidad de bulto", min_value=1, value=bultos_asignados, disabled=True)
+            # ----------------------------------------------------
+            
+            estado_entrega = st.selectbox("Estado", ["ENTREGADO", "NO ENTREGADO"])
+            
+            st.markdown("---")
+            st.markdown("### Información de Cobro")
+            forma_cobro = st.selectbox("Forma de cobro", ["Efectivo", "Transferencia", "Cheque", "Sin Cobro"])
+            monto = st.number_input("Monto ($)", min_value=0.0, step=0.01)
+            
+            btn_enviar_1 = st.form_submit_button("ENVIAR ENTREGA")
+            
+            if btn_enviar_1:
+                try:
+                    worksheet_entregas = sheet.worksheet("Entregas")
+                except:
+                    worksheet_entregas = sheet.add_worksheet(title="Entregas", rows=100, cols=10)
+                    worksheet_entregas.append_row(["Fecha", "Envio N°", "Pedido N°", "Cantidad de bultos", "Estado", "Forma de cobro", "Monto"])
+
+                # 1. Registrar en la solapa "Entregas"
+                fila_entrega = [
+                    fecha_actual,        # Fecha
+                    envio_n,             # Envío N°
+                    pedido_n,            # Pedido N°
+                    cant_bultos,         # Cantidad de bultos
+                    estado_entrega,      # Estado
+                    forma_cobro,         # Forma de cobro
+                    monto                # Monto
+                ]
+                worksheet_entregas.append_row(fila_entrega, value_input_option='USER_ENTERED')
                 
-            ]
-            
-            worksheet_entregas.append_row(fila_entrega, value_input_option='USER_ENTERED')
-            st.success(f"¡Entrega del envío {envio_n} registrada con éxito!")
-            
-            # Avanzar automáticamente al siguiente envío y limpiar formulario
-            if st.session_state.envio_index < len(envios_disponibles) - 1:
-                st.session_state.envio_index += 1
-            else:
-                st.info("¡Has completado todos los envíos asignados!")
-            
-            st.rerun()
+                # 2. Actualizar automáticamente la columna Estado (Columna H) en la solapa "Asignación"
+                try:
+                    ws_asig = sheet.worksheet("Asignación")
+                    cell = ws_asig.find(envio_n) # Busca la celda del Envío N°
+                    if cell:
+                        # Columna H es la 8 (Estado)
+                        ws_asig.update_cell(cell.row, 8, estado_entrega)
+                except Exception as ex:
+                    st.warning(f"Se registró la entrega, pero no se pudo actualizar el estado en Asignación: {ex}")
+
+                st.success(f"¡Entrega del envío {envio_n} registrada con éxito!")
+                
+                # Avanzar al siguiente envío
+                if st.session_state.envio_index < len(envios_disponibles) - 1:
+                    st.session_state.envio_index += 1
+                else:
+                    st.session_state.envio_index = 0
+                
+                st.rerun()
 
 # --- SOLAPA 2: CIERRE DE VIAJE ---
 with tab2:
@@ -202,8 +227,8 @@ with tab2:
     with st.form("form_cierre"):
         fecha_cierre = datetime.now().strftime("%Y-%m-%d")
         
-        vehiculo_id = st.text_input("Patente del Vehículo", value=patente_asignada, disabled=True)
-        envio_cierre = st.text_input("Envío N° Actual", value=envio_asignado, disabled=True)
+        vehiculo_id = st.text_input("Dominio del Vehículo", value=patente_asignada, disabled=True)
+        envio_cierre = st.text_input("Envío N° Actual", value=envios_disponibles[st.session_state.envio_index]["envio"] if envios_disponibles else "ENV-000", disabled=True)
         
         finalizo_viaje = st.selectbox("¿Finalizó viaje?", ["Sí", "No"])
         km_actual = st.number_input("Km Actual del Odómetro", min_value=0.0, value=15250.0, step=1.0)
@@ -219,7 +244,6 @@ with tab2:
         if btn_enviar_2:
             link_foto = "Sin foto"
             if foto_odometro is not None:
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                 folder_id = "1THxT45-t-VFWU0JmWD2kR2WDCwmA9vdW"
                 link_foto = f'=HYPERLINK("https://drive.google.com/drive/folders/{folder_id}", "Abrir Carpeta Drive")'
 
