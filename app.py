@@ -115,14 +115,12 @@ with tab2:
         
         btn_enviar_2 = st.form_submit_button("FINALIZAR Y ENVIAR CIERRE DE VIAJE")
         
-       if btn_enviar_2:
+        if btn_enviar_2:
             link_foto = "Sin foto"
             if foto_odometro is not None:
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                 nombre_archivo = f"Odometro_{chofer_actual}_{patente_asignada}_{timestamp}.jpg"
                 folder_id = "1THxT45-t-VFWU0JmWD2kR2WDCwmA9vdW"
-                
-                # Usamos coma (,) en lugar de punto y coma para que Google Sheets lo reconozca como fórmula interactiva
                 link_foto = f'=HYPERLINK("https://drive.google.com/drive/folders/{folder_id}", "Abrir Carpeta Drive")'
 
             try:
@@ -131,12 +129,10 @@ with tab2:
                 worksheet_cierres = sheet.add_worksheet(title="Cierres", rows=100, cols=10)
                 worksheet_cierres.append_row(["Fecha", "Chofer", "Patente", "Envio", "Finalizo Viaje", "Km Actual", "Observaciones", "Acceso Foto Odómetro"])
 
-            # Para forzar a que Google Sheets interprete "=HYPERLINK" como una fórmula y no como texto plano:
             fila_datos = [
                 fecha_cierre, chofer_actual, vehiculo_id, envio_cierre, finalizo_viaje, 
                 km_actual, observaciones, link_foto
             ]
             
-            # Insertar fila evaluando fórmulas
             worksheet_cierres.append_row(fila_datos, value_input_option='USER_ENTERED')
             st.success("¡Cierre de viaje registrado con éxito! El enlace interactivo ya está disponible en Google Sheets.")
