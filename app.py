@@ -175,14 +175,13 @@ with tab1:
             # ORDEN EXACTO DE COLUMNAS COINCIDENTE CON TU PLANILLA
             fila_entrega = [
                 fecha_actual,        # A: Fecha
-                chofer_actual,       # B: Chofer
-                patente_s1,          # C: Patente
-                envio_n,             # D: Envios N°
-                pedido_n,            # E: Pedido N°
-                cant_bultos,         # F: Cantidad de bultos
-                estado_entrega,      # G: Estado
-                forma_cobro,         # H: Forma de cobro
-                monto                # I: Monto
+                envio_n,             # B:Envios N°
+                pedido_n,            # C:Pedido N°
+                cant_bultos,         # D: Cantidad de bultos
+                estado_entrega,      # E: Estado
+                forma_cobro,         # F: Forma de cobro
+                monto                # G: Monto                
+                
             ]
             
             worksheet_entregas.append_row(fila_entrega, value_input_option='USER_ENTERED')
