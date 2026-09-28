@@ -1,12 +1,15 @@
 import streamlit as st
 import gspread
 from google.oauth2.service_account import Credentials
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaIoBaseUpload
+import io
 from datetime import datetime
 
 # --- 1. CONFIGURACIÓN DE LA PÁGINA ---
 st.set_page_config(page_title="App Logística", page_icon="🚚", layout="centered")
 
-# --- 2. CONEXIÓN A GOOGLE SHEETS (CON REPARADOR AUTOMÁTICO DE LLAVE) ---
+# --- 2. CONEXIÓN A GOOGLE SERVICES (SHEETS Y DRIVE) ---
 @st.cache_resource
 def init_connection():
     scope = [
@@ -31,16 +34,51 @@ def init_connection():
     # ----------------------------------------------
 
     creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
-    client = gspread.authorize(creds)
-    return client
+    client_gspread = gspread.authorize(creds)
+    
+    # Servicio de Google Drive para subir imágenes
+    drive_service = build('drive', 'v3', credentials=creds)
+    
+    return client_gspread, drive_service
 
-client = init_connection()
+client, drive_service = init_connection()
 
 @st.cache_resource
 def get_sheet():
     return client.open("sistema de control de flota")
 
 sheet = get_sheet()
+
+# --- FUNCIÓN PARA SUBIR ARCHIVO A GOOGLE DRIVE ---
+def subir_foto_a_drive(uploaded_file, chofer, patente):
+    try:
+        # ID oficial de tu carpeta 'Fotos_Odometros' en Google Drive
+        FOLDER_ID = "1THxT45-t-VFWU0JmWD2kR2WDCwmA9vdW" 
+        
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        nombre_archivo = f"Odometro_{chofer}_{patente}_{timestamp}.jpg"
+        
+        file_metadata = {
+            'name': nombre_archivo,
+            'parents': [FOLDER_ID]
+        }
+        
+        media = MediaIoBaseUpload(
+            io.BytesIO(uploaded_file.getvalue()),
+            mimetype=uploaded_file.type,
+            resumable=True
+        )
+        
+        file = drive_service.files().create(
+            body=file_metadata,
+            media_body=media,
+            fields='id, webViewLink'
+        ).execute()
+        
+        # Retorna el enlace web directo para abrir la imagen
+        return file.get('webViewLink')
+    except Exception as e:
+        return f"Error al subir: {str(e)}"
 
 # --- 3. OBTENER ASIGNACIÓN DESDE LA PLANILLA ---
 def obtener_asignacion(chofer):
@@ -116,16 +154,20 @@ with tab2:
         btn_enviar_2 = st.form_submit_button("FINALIZAR Y ENVIAR CIERRE DE VIAJE")
         
         if btn_enviar_2:
+            # 1. Subir foto a la carpeta de Google Drive configurada
+            url_foto = "Sin foto"
+            if foto_odometro is not None:
+                url_foto = subir_foto_a_drive(foto_odometro, chofer_actual, patente_asignada)
+            
             try:
                 worksheet_cierres = sheet.worksheet("Cierres")
             except:
                 worksheet_cierres = sheet.add_worksheet(title="Cierres", rows=100, cols=10)
-                worksheet_cierres.append_row(["Fecha", "Chofer", "Patente", "Envio", "Finalizo Viaje", "Km Actual", "Observaciones", "Foto Odómetro"])
+                worksheet_cierres.append_row(["Fecha", "Chofer", "Patente", "Envio", "Finalizo Viaje", "Km Actual", "Observaciones", "Enlace Foto Odómetro"])
 
-            nombre_foto = foto_odometro.name if foto_odometro is not None else "Sin foto"
-
+            # 2. Guardar registro con el link directo de Google Drive en la planilla
             worksheet_cierres.append_row([
                 fecha_cierre, chofer_actual, vehiculo_id, envio_cierre, finalizo_viaje, 
-                km_actual, observaciones, nombre_foto
+                km_actual, observaciones, url_foto
             ])
-            st.success("¡Cierre de viaje registrado y guardado en Google Sheets con éxito!")
+            st.success("¡Cierre de viaje registrado y foto guardada en Google Drive con éxito!")
