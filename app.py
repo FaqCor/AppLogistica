@@ -2,12 +2,11 @@ import streamlit as st
 import gspread
 from google.oauth2.service_account import Credentials
 from datetime import datetime
-import json
 
 # --- 1. CONFIGURACIÓN DE LA PÁGINA ---
 st.set_page_config(page_title="App Logística", page_icon="🚚", layout="centered")
 
-# --- 2. CONEXIÓN A GOOGLE SHEETS (MÉTODO JSON NATIVO) ---
+# --- 2. CONEXIÓN A GOOGLE SHEETS (CON REPARADOR AUTOMÁTICO DE LLAVE) ---
 @st.cache_resource
 def init_connection():
     scope = [
@@ -15,11 +14,23 @@ def init_connection():
         "https://www.googleapis.com/auth/drive"
     ]
     
-    # Convertimos los secretos directamente a un diccionario limpio
-    secrets_dict = dict(st.secrets["gcp_service_account"])
+    creds_dict = dict(st.secrets["gcp_service_account"])
     
-    # Creamos las credenciales asegurando el formato correcto de la clave
-    creds = Credentials.from_service_account_info(secrets_dict, scopes=scope)
+    # --- REPARADOR BLINDADO DE LA CLAVE PRIVADA ---
+    pk = creds_dict.get("private_key", "")
+    pk = pk.replace("\\n", "\n")
+    
+    if "BEGIN PRIVATE KEY" in pk:
+        lines = [l.strip() for l in pk.split("\n") if l.strip()]
+        body_lines = [l for l in lines if "-----" not in l]
+        body = "".join(body_lines)
+        formatted_body = "\n".join(body[i:i+64] for i in range(0, len(body), 64))
+        pk = f"-----BEGIN PRIVATE KEY-----\n{formatted_body}\n-----END PRIVATE KEY-----\n"
+    
+    creds_dict["private_key"] = pk
+    # ----------------------------------------------
+
+    creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
     client = gspread.authorize(creds)
     return client
 
