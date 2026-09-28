@@ -42,17 +42,33 @@ def get_sheet():
 
 sheet = get_sheet()
 
-# --- 3. OBTENER ASIGNACIÓN DESDE LA PLANILLA ---
-def obtener_asignacion(chofer):
+# --- 3. OBTENER ASIGNACIONES DESDE LA PLANILLA ---
+def obtener_asignaciones_chofer(chofer):
+    """
+    Retorna la patente y una lista de diccionarios con los envíos 
+    asignados al chofer desde la solapa 'Asignaciones' de Google Sheets.
+    """
+    patente_asignada = "Sin Asignar"
+    envios_lista = []
     try:
         ws = sheet.worksheet("Asignaciones")
         registros = ws.get_all_records()
         for row in registros:
             if str(row.get("Chofer", "")).strip().lower() == chofer.strip().lower():
-                return str(row.get("Patente", "Sin Asignar")), str(row.get("Envio", "ENV-000"))
+                patente_asignada = str(row.get("Patente", "Sin Asignar"))
+                envio_id = str(row.get("Envio", "ENV-000"))
+                bultos_sugeridos = int(row.get("Bultos", 1)) if str(row.get("Bultos", "")).isdigit() else 1
+                envios_lista.append({
+                    "envio": envio_id,
+                    "bultos": bultos_sugeridos
+                })
     except Exception as e:
         pass
-    return "Sin Asignar", "ENV-000"
+    
+    if not envios_lista:
+        envios_lista = [{"envio": "ENV-000", "bultos": 1}]
+        
+    return patente_asignada, envios_lista
 
 # --- 4. INTERFAZ GENERAL DE LA APP ---
 st.title("🚚 Gestión de Logística - Choferes")
@@ -60,7 +76,15 @@ st.title("🚚 Gestión de Logística - Choferes")
 choferes_lista = ["Juan Pérez", "Carlos Gómez", "Mario Ruiz"]
 chofer_actual = st.selectbox("Seleccione su Usuario / Chofer:", choferes_lista)
 
-patente_asignada, envio_asignado = obtener_asignacion(chofer_actual)
+patente_asignada, envios_disponibles = obtener_asignaciones_chofer(chofer_actual)
+
+# Control de estado para manejar el envío actual seleccionado
+if "envio_index" not in st.session_state:
+    st.session_state.envio_index = 0
+
+# Asegurar que el índice no se pase del límite si cambian los datos en la planilla
+if st.session_state.envio_index >= len(envios_disponibles):
+    st.session_state.envio_index = 0
 
 tab1, tab2 = st.tabs(["📦 Solapa 1: Entregas", "📊 Solapa 2: Cierre de Viaje"])
 
@@ -68,14 +92,34 @@ tab1, tab2 = st.tabs(["📦 Solapa 1: Entregas", "📊 Solapa 2: Cierre de Viaje
 with tab1:
     st.subheader("Registro de Entrega")
     
+    # Obtener el envío actual según el índice de la sesión
+    envio_actual_dict = envios_disponibles[st.session_state.envio_index]
+    envio_asignado = envio_actual_dict["envio"]
+    bultos_asignados = envio_actual_dict["bultos"]
+
+    # Selector visual si hay múltiples envíos asignados por logística
+    if len(envios_disponibles) > 1:
+        opciones_envios = [e["envio"] for e in envios_disponibles]
+        envio_seleccionado = st.selectbox(
+            "Seleccione el Envío a procesar (Asignado por Logística):", 
+            opciones_envios, 
+            index=st.session_state.envio_index
+        )
+        # Sincronizar índice si el usuario lo cambia manualmente en el selectbox
+        st.session_state.envio_index = opciones_envios.index(envio_seleccionado)
+        envio_actual_dict = envios_disponibles[st.session_state.envio_index]
+        envio_asignado = envio_actual_dict["envio"]
+        bultos_asignados = envio_actual_dict["bultos"]
+
     with st.form("form_entregas"):
         fecha_actual = datetime.now().strftime("%Y-%m-%d")
         
+        # Campos protegidos / griseados (disabled=True)
         envio_n = st.text_input("Envío N° (Asignado por Logística)", value=envio_asignado, disabled=True)
         patente_s1 = st.text_input("Patente Asignada", value=patente_asignada, disabled=True)
         
         pedido_n = st.text_input("Pedido N°", value="PED-9988")
-        cant_bultos = st.number_input("Cantidad de bultos", min_value=1, value=4)
+        cant_bultos = st.number_input("Cantidad de bultos", min_value=1, value=bultos_asignados, disabled=True)
         
         estado_entrega = st.selectbox("Estado", ["ENTREGADO", "NO ENTREGADO"])
         
@@ -84,15 +128,29 @@ with tab1:
         forma_cobro = st.selectbox("Forma de cobro", ["Efectivo", "Transferencia", "Cheque", "Sin Cobro"])
         monto = st.number_input("Monto ($)", min_value=0.0, step=0.01)
         
+        # Botón de envío
         btn_enviar_1 = st.form_submit_button("ENVIAR ENTREGA")
         
         if btn_enviar_1:
-            worksheet_entregas = sheet.worksheet("Entregas")
+            try:
+                worksheet_entregas = sheet.worksheet("Entregas")
+            except:
+                worksheet_entregas = sheet.add_worksheet(title="Entregas", rows=100, cols=10)
+                worksheet_entregas.append_row(["Fecha", "Chofer", "Patente", "Envio", "Pedido", "Bultos", "Estado", "Forma Cobro", "Monto"])
+
             worksheet_entregas.append_row([
                 fecha_actual, chofer_actual, patente_s1, envio_n, pedido_n, cant_bultos, 
                 estado_entrega, forma_cobro, monto
             ])
-            st.success("¡Entrega registrada y enviada a Google Sheets con éxito!")
+            st.success(f"¡Entrega del envío {envio_n} registrada y enviada a Google Sheets con éxito!")
+            
+            # Avanzar automáticamente al siguiente envío disponible en la lista
+            if st.session_state.envio_index < len(envios_disponibles) - 1:
+                st.session_state.envio_index += 1
+            else:
+                st.info("¡Has completado todos los envíos asignados en esta lista!")
+            
+            st.rerun()
 
 # --- SOLAPA 2: CIERRE DE VIAJE ---
 with tab2:
