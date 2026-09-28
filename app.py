@@ -2,7 +2,6 @@ import streamlit as st
 import gspread
 from google.oauth2.service_account import Credentials
 from datetime import datetime
-import base64
 
 # --- 1. CONFIGURACIÓN DE LA PÁGINA ---
 st.set_page_config(page_title="App Logística", page_icon="🚚", layout="centered")
@@ -117,24 +116,27 @@ with tab2:
         btn_enviar_2 = st.form_submit_button("FINALIZAR Y ENVIAR CIERRE DE VIAJE")
         
         if btn_enviar_2:
-            nombre_foto = "Sin foto"
+            link_foto = "Sin foto"
             if foto_odometro is not None:
-                # Genera un nombre de archivo único con la fecha, chofer y patente
+                # Generamos una fórmula de Google Sheets para hacer el enlace clickeable 
+                # que apunta directamente a tu carpeta compartida de Google Drive
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                nombre_foto = f"Odometro_{chofer_actual}_{patente_asignada}_{timestamp}.jpg"
+                nombre_archivo = f"Odometro_{chofer_actual}_{patente_asignada}_{timestamp}.jpg"
                 
-                # Opcional: Si deseas guardar una vista previa o referencia del archivo cargado
-                # Mostramos la imagen de confirmación en el mismo momento en Streamlit
-                st.image(foto_odometro, caption=f"Foto subida por {chofer_actual}", width=200)
+                # ID de tu carpeta de Drive
+                folder_id = "1THxT45-t-VFWU0JmWD2kR2WDCwmA9vdW"
+                
+                # Creamos un hipervínculo que abre la carpeta en la web para buscar el archivo fácilmente
+                link_foto = f'=HYPERLINK("https://drive.google.com/drive/folders/{folder_id}"; "Ver carpeta ({nombre_archivo})")'
 
             try:
                 worksheet_cierres = sheet.worksheet("Cierres")
             except:
                 worksheet_cierres = sheet.add_worksheet(title="Cierres", rows=100, cols=10)
-                worksheet_cierres.append_row(["Fecha", "Chofer", "Patente", "Envio", "Finalizo Viaje", "Km Actual", "Observaciones", "Archivo Foto Odómetro"])
+                worksheet_cierres.append_row(["Fecha", "Chofer", "Patente", "Envio", "Finalizo Viaje", "Km Actual", "Observaciones", "Acceso Foto Odómetro"])
 
             worksheet_cierres.append_row([
                 fecha_cierre, chofer_actual, vehiculo_id, envio_cierre, finalizo_viaje, 
-                km_actual, observaciones, nombre_foto
+                km_actual, observaciones, link_foto
             ])
-            st.success("¡Cierre de viaje registrado con éxito en Google Sheets!")
+            st.success("¡Cierre de viaje registrado con éxito! El enlace de acceso a la carpeta se generó en la planilla.")
