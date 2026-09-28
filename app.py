@@ -1,15 +1,15 @@
 import streamlit as st
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
-from datetime import datetime
-import pandas as pd
 
-# --- 1. CONFIGURACIÓN DE LA CONEXIÓN Y PLANILLA EN CACHÉ ---
-@st.cache_resource
 def init_connection():
+    # Cargamos las credenciales desde los Secrets de Streamlit Cloud
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-    ruta_credenciales = r"C:\Users\RoDriGo\OneDrive\Escritorio\AppLogistica\credentials.json"
-    creds = ServiceAccountCredentials.from_json_keyfile_name(ruta_credenciales, scope)
+    
+    # Convertimos los secretos de Streamlit a un diccionario estándar de Python
+    creds_dict = dict(st.secrets["gcp_service_account"])
+    
+    creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
     client = gspread.authorize(creds)
     return client
 
