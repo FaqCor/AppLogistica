@@ -59,22 +59,37 @@ PINES_CHOFERES = {
     "FELIX NICOLÁS": "3333"
 }
 
-# --- 4. COORDENADAS DE REFERENCIA PARA EL MAPA (NOA / ARGENTINA) ---
-# Diccionario orientativo de coordenadas de destinos comunes para trazar el mapa
+# --- 4. COORDENADAS Y CORREDORES GEOGRÁFICOS ---
 COORDS_DESTINOS = {
     "salta": (-24.7821, -65.4232),
     "jujuy": (-24.1858, -65.2995),
     "san salvador de jujuy": (-24.1858, -65.2995),
     "tucuman": (-26.8083, -65.2176),
     "san miguel de tucuman": (-26.8083, -65.2176),
-    "santiago del estero": (-27.7951, -64.2615),
     "catamarca": (-28.4696, -65.7852),
     "san fernando del valle de catamarca": (-28.4696, -65.7852),
+    "santiago del estero": (-27.7951, -64.2615),
+    "la rioja": (-29.4131, -66.8558),
     "formosa": (-26.1853, -58.1758),
     "chaco": (-27.4512, -58.9866),
     "resistencia": (-27.4512, -58.9866),
-    "corrientes": (-27.4692, -58.8306),
-    "la rioja": (-29.4131, -66.8558)
+    "corrientes": (-27.4692, -58.8306)
+}
+
+ORDEN_CORREDOR = {
+    "salta": 1,
+    "jujuy": 2,
+    "san salvador de jujuy": 2,
+    "tucuman": 3,
+    "san miguel de tucuman": 3,
+    "catamarca": 4,
+    "san fernando del valle de catamarca": 4,
+    "santiago del estero": 5,
+    "la rioja": 6,
+    "chaco": 7,
+    "resistencia": 7,
+    "corrientes": 8,
+    "formosa": 9
 }
 
 def obtener_coordenada(destino_str):
@@ -82,8 +97,14 @@ def obtener_coordenada(destino_str):
     for key, coords in COORDS_DESTINOS.items():
         if key in dest_clean:
             return coords
-    # Coordenada por defecto en Salta Capital si no se reconoce
     return (-24.7821, -65.4232)
+
+def obtener_peso_destino(destino_str):
+    dest_clean = destino_str.strip().lower()
+    for key, peso in ORDEN_CORREDOR.items():
+        if key in dest_clean:
+            return peso
+    return 99
 
 # --- 5. OBTENER ASIGNACIONES DESDE LA PLANILLA ---
 def obtener_asignaciones_chofer(chofer):
@@ -198,7 +219,7 @@ if st.session_state.envio_index >= len(envios_disponibles) and len(envios_dispon
     st.session_state.envio_index = 0
 
 # CREACIÓN DE LAS TRES SOLAPAS
-tab1, tab2, tab3 = st.tabs(["📦 Solapa 1: Entregas", "📊 Solapa 2: Cierre de Viaje", "🗺️ Solapa 3: Hoja de Ruta y Mapa"])
+tab1, tab2, tab3 = st.tabs(["📦 Solapa 1: Entregas", "📊 Solapa 2: Cierre de Viaje", "🗺️ Solapa 3: Hoja de Ruta Óptima"])
 
 # --- SOLAPA 1: ENTREGAS ---
 with tab1:
@@ -332,7 +353,7 @@ with tab2:
             worksheet_cierres.append_row(fila_datos, value_input_option='USER_ENTERED')
             st.success("¡Cierre de viaje registrado con éxito!")
 
-# --- SOLAPA 3: HOJA DE RUTA Y MAPA DE SECUENCIA ÓPTIMA (CORREGIDO Y ORDENADO) ---
+# --- SOLAPA 3: HOJA DE RUTA Y MAPA DE SECUENCIA ÓPTIMA (CORREGIDO) ---
 with tab3:
     st.subheader("🗺️ Ruta Óptima de Menor Kilometraje (Corredores Logísticos)")
     st.markdown("""
@@ -342,32 +363,6 @@ with tab3:
     if not envios_disponibles:
         st.info("No hay rutas activas en este momento.")
     else:
-        # Asignar un "peso o índice de ruta" a cada destino para ordenarlos de forma coherente 
-        # según la salida desde Salta hacia el sur/este.
-        # Menor número = más cerca de la salida / Corredor principal.
-        ORDEN_CORREDOR = {
-            "salta": 1,
-            "jujuy": 2,
-            "san salvador de jujuy": 2,
-            "tucuman": 3,
-            "san miguel de tucuman": 3,
-            "catamarca": 4,
-            "san fernando del valle de catamarca": 4,
-            "santiago del estero": 5,
-            "la rioja": 6,
-            "chaco": 7,
-            "resistencia": 7,
-            "corrientes": 8,
-            "formosa": 9
-        }
-
-        def obtener_peso_destino(destino_str):
-            dest_clean = destino_str.strip().lower()
-            for key, peso in ORDEN_CORREDOR.items():
-                if key in dest_clean:
-                    return peso
-            return 99 # Si no lo encuentra, lo manda al final
-
         # 1. ORDENAR LOS ENVÍOS SEGÚN EL CORREDOR LÓGICO DE MENOR KILOMETRAJE
         envios_ordenados = sorted(envios_disponibles, key=lambda x: obtener_peso_destino(x["destino"]))
 
@@ -377,18 +372,18 @@ with tab3:
         for idx, envio in enumerate(envios_ordenados, start=1):
             coords = obtener_coordenada(envio["destino"])
             puntos_mapa.append({
-                "Parada N°": idx,
-                "Envío": envio["envio"],
-                "Pedido": envio["pedido"],
-                "Destino": envio["destino"],
-                "Bultos": envio["bultos"],
-                "Coordenadas": coords
+                "parada": idx,
+                "envio": envio["envio"],
+                "pedido": envio["pedido"],
+                "destino": envio["destino"],
+                "bultos": envio["bultos"],
+                "coords": coords
             })
 
         # 2. MOSTRAR ORDEN SECUENCIAL OPTIMIZADO
         st.markdown("### 📋 Orden Secuencial Óptimo de Visitas")
         for parada in puntos_mapa:
-            st.markdown(f"**Parada #{parada['Parada N°']}** ➔ **Envío:** `{parada['Envio']}` | **Pedido:** `{parada['Pedido']}` | **Destino:** `{parada['Destino']}` (Bultos: {parada['Bultos']})")
+            st.markdown(f"**Parada #{parada['parada']}** ➔ **Envío:** `{parada['envio']}` | **Pedido:** `{parada['pedido']}` | **Destino:** `{parada['destino']}` (Bultos: {parada['bultos']})")
         
         st.markdown("---")
         st.markdown("### 📍 Mapa Interactivo con la Ruta Optimizada")
@@ -405,15 +400,15 @@ with tab3:
         polyline_coords = [punto_partida]
         
         for parada in puntos_mapa:
-            coords = parada["Coordenadas"]
+            coords = parada["coords"]
             polyline_coords.append(coords)
             
-            popup_text = f"<b>Parada #{parada['Parada N°']}</b><br>Envío: {parada['Envio']}<br>Pedido: {parada['Pedido']}<br>Destino: {parada['Destino']}"
+            popup_text = f"<b>Parada #{parada['parada']}</b><br>Envío: {parada['envio']}<br>Pedido: {parada['pedido']}<br>Destino: {parada['destino']}"
             
             folium.Marker(
                 location=coords,
                 popup=folium.Popup(popup_text, max_width=300),
-                tooltip=f"Parada {parada['Parada N°']}: {parada['Destino']}",
+                tooltip=f"Parada {parada['parada']}: {parada['destino']}",
                 icon=folium.Icon(color="green", icon="shopping-cart")
             ).add_to(mapa_ruta)
             
