@@ -4,6 +4,7 @@ from google.oauth2.service_account import Credentials
 from datetime import datetime
 from PIL import Image
 import io
+import urllib.parse
 
 # --- 1. CONFIGURACIÓN DE LA PÁGINA ---
 st.set_page_config(page_title="App Logística - Choferes", page_icon="🚚", layout="centered")
@@ -93,6 +94,29 @@ def obtener_asignaciones_chofer(chofer):
     
     return patente_asignada, envios_lista
 
+# --- FUNCIÓN PARA OBTENER LA RUTA OPTIMIZADA DEL CHOFER ---
+def obtener_ruta_optimizada(chofer):
+    ruta_lista = []
+    try:
+        ws = sheet.worksheet("Ruta_Activa")
+        registros = ws.get_all_records()
+        for row in registros:
+            row_lower = {str(k).strip().lower(): v for k, v in row.items()}
+            chofer_fila = str(row_lower.get("chofer", "")).strip()
+            
+            if chofer_fila.lower() == chofer.strip().lower():
+                ruta_lista.append({
+                    "orden": row_lower.get("orden", 1),
+                    "localidad": row_lower.get("localidad", ""),
+                    "destino": row_lower.get("destino", ""),
+                    "direccion": row_lower.get("direccion", ""),
+                    "km": row_lower.get("km", 0)
+                })
+    except Exception:
+        # Si la solapa aún no fue creada por logística, retorna lista vacía sin romper la app
+        pass
+    return ruta_lista
+
 # --- 5. GESTIÓN DE ACCESO Y SEGURIDAD ---
 st.title("🚚 Gestión de Logística - Choferes")
 
@@ -162,6 +186,7 @@ if st.button("🔒 Cerrar Sesión / Salir"):
     st.rerun()
 
 patente_asignada, envios_disponibles = obtener_asignaciones_chofer(chofer_actual)
+ruta_asignada = obtener_ruta_optimizada(chofer_actual)
 
 if "envio_index" not in st.session_state:
     st.session_state.envio_index = 0
@@ -169,7 +194,8 @@ if "envio_index" not in st.session_state:
 if st.session_state.envio_index >= len(envios_disponibles) and len(envios_disponibles) > 0:
     st.session_state.envio_index = 0
 
-tab1, tab2 = st.tabs(["📦 Solapa 1: Entregas", "📊 Solapa 2: Cierre de Viaje"])
+# --- PESTAÑAS DE LA APLICACIÓN ---
+tab1, tab2, tab3 = st.tabs(["📦 Solapa 1: Entregas", "📊 Solapa 2: Cierre de Viaje", "🗺️ Solapa 3: Ruta Optimizada"])
 
 # --- SOLAPA 1: ENTREGAS ---
 with tab1:
@@ -235,7 +261,7 @@ with tab1:
                     cell = ws_asig.find(envio_n)
                     if cell:
                         ws_asig.update_cell(cell.row, 8, estado_entrega)
-                except Exception as ex:
+                except Exception:
                     pass
 
                 st.success(f"¡Entrega del envío {envio_n} registrada con éxito!")
@@ -254,7 +280,6 @@ with tab2:
     with st.form("form_cierre"):
         fecha_cierre = datetime.now().strftime("%Y-%m-%d")
         
-        # Hereda automáticamente la patente y el envío actual de la Solapa 1
         vehiculo_id = st.text_input("Dominio del Vehículo (Automático)", value=patente_asignada, disabled=True)
         envio_cierre = st.text_input("Envío N° Actual (Automático)", value=envios_disponibles[st.session_state.envio_index]["envio"] if envios_disponibles else "ENV-000", disabled=True)
         
@@ -262,7 +287,6 @@ with tab2:
         finalizo_viaje = st.selectbox("¿Finalizó viaje?", ["Sí", "No"])
         km_actual = st.number_input("Km Actual del Odómetro", min_value=0.0, value=0.0, step=1.0)
         
-        # Subida de foto con control de memoria RAM optimizado
         foto_odometro = st.file_uploader("Subir foto del odómetro", type=["jpg", "jpeg", "png"])
         
         btn_enviar_2 = st.form_submit_button("FINALIZAR Y ENVIAR CIERRE DE VIAJE")
@@ -271,7 +295,6 @@ with tab2:
             link_foto = "Sin foto"
             if foto_odometro is not None:
                 try:
-                    # Compresión automática para evitar error de memoria insuficiente
                     img = Image.open(foto_odometro)
                     img.thumbnail((800, 800))
                     if img.mode in ("RGBA", "P"):
@@ -292,17 +315,45 @@ with tab2:
                 worksheet_cierres = sheet.add_worksheet(title="Cierres", rows=100, cols=10)
                 worksheet_cierres.append_row(["Fecha", "Chofer", "Patente", "Envio", "Finalizo Viaje", "Km Actual", "Observaciones", "Acceso Foto Odómetro"])
 
-            # Estructura exacta ordenada según tu solapa Cierres
             fila_datos = [
-                fecha_cierre,      # A: Fecha
-                chofer_actual,     # B: Chofer
-                vehiculo_id,       # C: Patente (heredada de la solapa 1)
-                envio_cierre,      # D: Envio (heredado de la solapa 1)
-                finalizo_viaje,    # E: Finalizo Viaje
-                km_actual,         # F: Km Actual
-                "Sin observaciones", # G: Campo por defecto (o libre si deseas agregarlo)
-                link_foto          # H: Acceso Foto Odómetro
+                fecha_cierre,
+                chofer_actual,
+                vehiculo_id,
+                envio_cierre,
+                finalizo_viaje,
+                km_actual,
+                "Sin observaciones",
+                link_foto
             ]
+            
+            worksheet_cierres.append_row(fila_datos, value_input_option='USER_ENTERED')
+            st.success("¡Cierre de viaje registrado con éxito en Google Sheets!")
+
+# --- SOLAPA 3: RUTA OPTIMIZADA (NUEVA) ---
+with tab3:
+    st.subheader("🗺️ Secuencia de Ruta Óptima")
+    st.markdown("Sigue estrictamente este orden de paradas calculado para optimizar kilómetros y combustible.")
+    
+    if not ruta_asignada:
+        st.info("ℹ️ Todavía no hay una ruta optimizada cargada por logística para tu usuario en este momento.")
+    else:
+        for parada in ruta_asignada:
+            orden = parada["orden"]
+            localidad = parada["localidad"]
+            destino = parada["destino"]
+            direccion = parada["direccion"]
+            km_tramo = parada["km"]
+            
+            # Generar enlace directo a Google Maps con la dirección exacta
+            query_maps = urllib.parse.quote(f"{destino}, {direccion}, {localidad}")
+            link_gps = f"https://www.google.com/maps/search/?api=1&query={query_maps}"
+            
+            with st.container():
+                st.markdown(f"### 📍 Parada #{orden}: {destino}")
+                st.markdown(f"**Localidad:** {localidad} | **Dirección:** {direccion}")
+                st.markdown(f"*(Distancia estimada tramo: {km_tramo} km)*")
+                st.link_button(f"🧭 Abrir GPS en Google Maps (Parada {orden})", link_gps)
+                st.markdown("---")
             
             worksheet_cierres.append_row(fila_datos, value_input_option='USER_ENTERED')
             st.success("¡Cierre de viaje registrado con éxito en Google Sheets!")
