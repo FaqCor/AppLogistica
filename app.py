@@ -332,76 +332,76 @@ with tab2:
             worksheet_cierres.append_row(fila_datos, value_input_option='USER_ENTERED')
             st.success("¡Cierre de viaje registrado con éxito!")
 
-# --- SOLAPA 3: HOJA DE RUTA Y MAPA DE SECUENCIA ÓPTIMA (TSP) ---
+# --- SOLAPA 3: HOJA DE RUTA Y MAPA DE SECUENCIA ÓPTIMA (CORREGIDO Y ORDENADO) ---
 with tab3:
-    st.subheader("🗺️ Ruta Óptima de Menor Kilometraje (Minimización de Combustible)")
+    st.subheader("🗺️ Ruta Óptima de Menor Kilometraje (Corredores Logísticos)")
     st.markdown("""
-    * **Optimización Matemática (TSP):** Las paradas han sido reordenadas automáticamente utilizando el algoritmo del **Vecino Más Cercano** para garantizar el menor recorrido en kilómetros y ahorro de combustible.
-    * **Regla LIFO de Carga:** El orden de descarga se presenta optimizado para que el camión se cargue de atrás hacia adelante de forma lógica.
+    * **Optimización por Corredor Vial:** Las paradas han sido reordenadas en base a la continuidad geográfica real de las rutas para evitar saltos ineficientes entre provincias.
     """)
     
     if not envios_disponibles:
         st.info("No hay rutas activas en este momento.")
     else:
-        # 1. OBTENER COORDENADAS Y APLICAR ALGORITMO DE OPTIMIZACIÓN (TSP)
-        # Punto de partida logístico por defecto (Base en Salta Capital)
-        punto_partida = (-24.7821, -65.4232) 
-        
-        destinos_pendientes = []
-        for envio in envios_disponibles:
-            coords = obtener_coordenada(envio["destino"])
-            destinos_pendientes.append({
-                "envio": envio["envio"],
-                "pedido": envio["pedido"],
-                "destino": envio["destino"],
-                "bultos": envio["bultos"],
-                "coords": coords
-            })
-            
-        # ALGORITMO DEL VECINO MÁS CERCANO (Menor distancia acumulada)
-        ruta_optimizada = []
-        ubicacion_actual = punto_partida
-        
-        while destinos_pendientes:
-            # Encontrar el destino más cercano a la ubicación actual
-            siguiente_parada = min(
-                destinos_pendientes, 
-                key=lambda x: ((x["coords"][0] - ubicacion_actual[0])**2 + (x["coords"][1] - ubicacion_actual[1])**2)
-            )
-            ruta_optimizada.append(siguiente_parada)
-            ubicacion_actual = siguiente_parada["coords"]
-            destinos_pendientes.remove(siguiente_parada)
-            
-        # 2. MOSTRAR ORDEN SECUENCIAL OPTIMIZADO
-        st.markdown("### 📋 Orden Secuencial Óptimo de Visitas")
+        # Asignar un "peso o índice de ruta" a cada destino para ordenarlos de forma coherente 
+        # según la salida desde Salta hacia el sur/este.
+        # Menor número = más cerca de la salida / Corredor principal.
+        ORDEN_CORREDOR = {
+            "salta": 1,
+            "jujuy": 2,
+            "san salvador de jujuy": 2,
+            "tucuman": 3,
+            "san miguel de tucuman": 3,
+            "catamarca": 4,
+            "san fernando del valle de catamarca": 4,
+            "santiago del estero": 5,
+            "la rioja": 6,
+            "chaco": 7,
+            "resistencia": 7,
+            "corrientes": 8,
+            "formosa": 9
+        }
+
+        def obtener_peso_destino(destino_str):
+            dest_clean = destino_str.strip().lower()
+            for key, peso in ORDEN_CORREDOR.items():
+                if key in dest_clean:
+                    return peso
+            return 99 # Si no lo encuentra, lo manda al final
+
+        # 1. ORDENAR LOS ENVÍOS SEGÚN EL CORREDOR LÓGICO DE MENOR KILOMETRAJE
+        envios_ordenados = sorted(envios_disponibles, key=lambda x: obtener_peso_destino(x["destino"]))
+
+        punto_partida = (-24.7821, -65.4232) # Base Salta Capital
         
         puntos_mapa = []
-        for idx, parada in enumerate(ruta_optimizada, start=1):
+        for idx, envio in enumerate(envios_ordenados, start=1):
+            coords = obtener_coordenada(envio["destino"])
             puntos_mapa.append({
                 "Parada N°": idx,
-                "Envío": parada["envio"],
-                "Pedido": parada["pedido"],
-                "Destino": parada["destino"],
-                "Bultos": parada["bultos"],
-                "Coordenadas": parada["coords"]
+                "Envío": envio["envio"],
+                "Pedido": envio["pedido"],
+                "Destino": envio["destino"],
+                "Bultos": envio["bultos"],
+                "Coordenadas": coords
             })
-            st.markdown(f"**Parada #{idx}** ➔ **Envío:** `{parada['envio']}` | **Pedido:** `{parada['pedido']}` | **Destino:** `{parada['destino']}` (Bultos: {parada['bultos']})")
+
+        # 2. MOSTRAR ORDEN SECUENCIAL OPTIMIZADO
+        st.markdown("### 📋 Orden Secuencial Óptimo de Visitas")
+        for parada in puntos_mapa:
+            st.markdown(f"**Parada #{parada['Parada N°']}** ➔ **Envío:** `{parada['Envio']}` | **Pedido:** `{parada['Pedido']}` | **Destino:** `{parada['Destino']}` (Bultos: {parada['Bultos']})")
         
         st.markdown("---")
-        st.markdown("### 📍 Mapa Interactivo con la Ruta de Menor Consumo")
+        st.markdown("### 📍 Mapa Interactivo con la Ruta Optimizada")
         
-        # Crear mapa centrado en la base
         mapa_ruta = folium.Map(location=punto_partida, zoom_start=7)
         
-        # Agregar marcador de la Base / Depósito de Salida
         folium.Marker(
             location=punto_partida,
-            popup="<b>Base Logística / Depósito de Partida</b>",
+            popup="<b>Base Logística / Depósito de Partida (Salta)</b>",
             tooltip="Depósito Central",
             icon=folium.Icon(color="orange", icon="home")
         ).add_to(mapa_ruta)
         
-        # Lista de coordenadas para trazar la línea de ruta (Incluyendo la salida desde la base)
         polyline_coords = [punto_partida]
         
         for parada in puntos_mapa:
@@ -414,18 +414,16 @@ with tab3:
                 location=coords,
                 popup=folium.Popup(popup_text, max_width=300),
                 tooltip=f"Parada {parada['Parada N°']}: {parada['Destino']}",
-                icon=folium.Icon(color="blue", icon="shopping-cart")
+                icon=folium.Icon(color="green", icon="shopping-cart")
             ).add_to(mapa_ruta)
             
-        # Trazar la línea de la ruta optimizada
         if len(polyline_coords) > 1:
             folium.PolyLine(
                 polyline_coords,
                 color="green",
                 weight=5,
                 opacity=0.85,
-                tooltip="Ruta Óptima Minimizada"
+                tooltip="Ruta Lógica Optimizada"
             ).add_to(mapa_ruta)
             
-        # Renderizar el mapa en Streamlit
         st_folium(mapa_ruta, width=700, height=500)
