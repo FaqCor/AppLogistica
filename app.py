@@ -4,6 +4,8 @@ from google.oauth2.service_account import Credentials
 from datetime import datetime
 from PIL import Image
 import io
+import folium
+from streamlit_folium import st_folium
 
 # --- 1. CONFIGURACIÓN DE LA PÁGINA ---
 st.set_page_config(page_title="App Logística - Choferes", page_icon="🚚", layout="centered")
@@ -57,7 +59,33 @@ PINES_CHOFERES = {
     "FELIX NICOLÁS": "3333"
 }
 
-# --- 4. OBTENER ASIGNACIONES DESDE LA PLANILLA ---
+# --- 4. COORDENADAS DE REFERENCIA PARA EL MAPA (NOA / ARGENTINA) ---
+# Diccionario orientativo de coordenadas de destinos comunes para trazar el mapa
+COORDS_DESTINOS = {
+    "salta": (-24.7821, -65.4232),
+    "jujuy": (-24.1858, -65.2995),
+    "san salvador de jujuy": (-24.1858, -65.2995),
+    "tucuman": (-26.8083, -65.2176),
+    "san miguel de tucuman": (-26.8083, -65.2176),
+    "santiago del estero": (-27.7951, -64.2615),
+    "catamarca": (-28.4696, -65.7852),
+    "san fernando del valle de catamarca": (-28.4696, -65.7852),
+    "formosa": (-26.1853, -58.1758),
+    "chaco": (-27.4512, -58.9866),
+    "resistencia": (-27.4512, -58.9866),
+    "corrientes": (-27.4692, -58.8306),
+    "la rioja": (-29.4131, -66.8558)
+}
+
+def obtener_coordenada(destino_str):
+    dest_clean = destino_str.strip().lower()
+    for key, coords in COORDS_DESTINOS.items():
+        if key in dest_clean:
+            return coords
+    # Coordenada por defecto en Salta Capital si no se reconoce
+    return (-24.7821, -65.4232)
+
+# --- 5. OBTENER ASIGNACIONES DESDE LA PLANILLA ---
 def obtener_asignaciones_chofer(chofer):
     envios_lista = []
     patente_asignada = "Sin Asignar"
@@ -93,7 +121,7 @@ def obtener_asignaciones_chofer(chofer):
     
     return patente_asignada, envios_lista
 
-# --- 5. GESTIÓN DE ACCESO Y SEGURIDAD ---
+# --- 6. GESTIÓN DE ACCESO Y SEGURIDAD ---
 st.title("🚚 Gestión de Logística - Choferes")
 
 choferes_lista = list(PINES_CHOFERES.keys())
@@ -169,7 +197,8 @@ if "envio_index" not in st.session_state:
 if st.session_state.envio_index >= len(envios_disponibles) and len(envios_disponibles) > 0:
     st.session_state.envio_index = 0
 
-tab1, tab2 = st.tabs(["📦 Solapa 1: Entregas", "📊 Solapa 2: Cierre de Viaje"])
+# CREACIÓN DE LAS TRES SOLAPAS
+tab1, tab2, tab3 = st.tabs(["📦 Solapa 1: Entregas", "📊 Solapa 2: Cierre de Viaje", "🗺️ Solapa 3: Hoja de Ruta y Mapa"])
 
 # --- SOLAPA 1: ENTREGAS ---
 with tab1:
@@ -247,22 +276,20 @@ with tab1:
                 
                 st.rerun()
 
-# --- SOLAPA 2: CIERRE DE VIAJE SIMPLIFICADO ---
+# --- SOLAPA 2: CIERRE DE VIAJE ---
 with tab2:
     st.subheader("Cierre de Viaje y Rendición")
     
     with st.form("form_cierre"):
         fecha_cierre = datetime.now().strftime("%Y-%m-%d")
         
-        # Hereda automáticamente la patente y el envío actual de la Solapa 1
-        vehiculo_id = st.text_input("Dominio del Vehículo (Automático)", value=patente_asignada, disabled=True)
-        envio_cierre = st.text_input("Envío N° Actual (Automático)", value=envios_disponibles[st.session_state.envio_index]["envio"] if envios_disponibles else "ENV-000", disabled=True)
+        vehiculo_id = st.text_input("Dominio del Vehículo", value=patente_asignada, disabled=True)
+        envio_cierre = st.text_input("Envío N° Actual", value=envios_disponibles[st.session_state.envio_index]["envio"] if envios_disponibles else "ENV-000", disabled=True)
         
         st.markdown("---")
         finalizo_viaje = st.selectbox("¿Finalizó viaje?", ["Sí", "No"])
         km_actual = st.number_input("Km Actual del Odómetro", min_value=0.0, value=0.0, step=1.0)
         
-        # Subida de foto con control de memoria RAM optimizado
         foto_odometro = st.file_uploader("Subir foto del odómetro", type=["jpg", "jpeg", "png"])
         
         btn_enviar_2 = st.form_submit_button("FINALIZAR Y ENVIAR CIERRE DE VIAJE")
@@ -271,7 +298,6 @@ with tab2:
             link_foto = "Sin foto"
             if foto_odometro is not None:
                 try:
-                    # Compresión automática para evitar error de memoria insuficiente
                     img = Image.open(foto_odometro)
                     img.thumbnail((800, 800))
                     if img.mode in ("RGBA", "P"):
@@ -292,17 +318,80 @@ with tab2:
                 worksheet_cierres = sheet.add_worksheet(title="Cierres", rows=100, cols=10)
                 worksheet_cierres.append_row(["Fecha", "Chofer", "Patente", "Envio", "Finalizo Viaje", "Km Actual", "Observaciones", "Acceso Foto Odómetro"])
 
-            # Estructura exacta ordenada según tu solapa Cierres
             fila_datos = [
-                fecha_cierre,      # A: Fecha
-                chofer_actual,     # B: Chofer
-                vehiculo_id,       # C: Patente (heredada de la solapa 1)
-                envio_cierre,      # D: Envio (heredado de la solapa 1)
-                finalizo_viaje,    # E: Finalizo Viaje
-                km_actual,         # F: Km Actual
-                "Sin observaciones", # G: Campo por defecto (o libre si deseas agregarlo)
-                link_foto          # H: Acceso Foto Odómetro
+                fecha_cierre,      # Fecha
+                chofer_actual,     # Chofer
+                vehiculo_id,       # Patente
+                envio_cierre,      # Envio
+                finalizo_viaje,    # Finalizo Viaje
+                km_actual,         # Km Actual
+                "Sin observaciones", # Observaciones
+                link_foto          # Acceso Foto Odómetro
             ]
             
             worksheet_cierres.append_row(fila_datos, value_input_option='USER_ENTERED')
-            st.success("¡Cierre de viaje registrado con éxito en Google Sheets!")
+            st.success("¡Cierre de viaje registrado con éxito!")
+
+# --- SOLAPA 3: HOJA DE RUTA Y MAPA DE SECUENCIA ÓPTIMA ---
+with tab3:
+    st.subheader("🗺️ Secuencia Óptima de Descarga y Mapa de Ruta")
+    st.markdown("""
+    * **Criterio LIFO (Carga y Descarga):** Los pedidos se ordenan de modo que el **último en cargarse al fondo del camión** sea el **primero en entregarse**.
+    """)
+    
+    if not envios_disponibles:
+        st.info("No hay rutas activas en este momento.")
+    else:
+        # Mostrar tabla de secuencia de entregas
+        st.markdown("### 📋 Orden Secuencial de Visitas (Secuencia Logística)")
+        
+        # Generar lista numerada de paradas
+        puntos_ruta = []
+        for idx, envio in enumerate(envios_disponibles, start=1):
+            coords = obtener_coordenada(envio["destino"])
+            puntos_ruta.append({
+                "Parada N°": idx,
+                "Envío": envio["envio"],
+                "Pedido": envio["pedido"],
+                "Destino": envio["destino"],
+                "Bultos": envio["bultos"],
+                "Coordenadas": coords
+            })
+            st.markdown(f"**Parada #{idx}** ➔ **Envío:** `{envio['envio']}` | **Pedido:** `{envio['pedido']}` | **Destino:** `{envio['destino']}` (Bultos: {envio['bultos']})")
+        
+        st.markdown("---")
+        st.markdown("### 📍 Visualización Interactiva del Recorrido")
+        
+        # Crear mapa centrado en el primer destino
+        centro_mapa = puntos_ruta[0]["Coordenadas"]
+        mapa_ruta = folium.Map(location=centro_mapa, zoom_start=8)
+        
+        # Lista de coordenadas para trazar la línea de ruta
+        polyline_coords = []
+        
+        for parada in puntos_ruta:
+            coords = parada["Coordenadas"]
+            polyline_coords.append(coords)
+            
+            # Agregar marcador numerado
+            popup_text = f"<b>Parada #{parada['Parada N°']}</b><br>Envío: {parada['Envio']}<br>Pedido: {parada['Pedido']}<br>Destino: {parada['Destino']}"
+            
+            folium.Marker(
+                location=coords,
+                popup=folium.Popup(popup_text, max_width=300),
+                tooltip=f"Parada {parada['Parada N°']}: {parada['Destino']}",
+                icon=folium.Icon(color="blue" if parada["Parada N°"] > 1 else "green", icon="info-sign")
+            ).add_to(mapa_ruta)
+            
+        # Trazar la línea de la ruta en orden secuencial
+        if len(polyline_coords) > 1:
+            folium.PolyLine(
+                polyline_coords,
+                color="red",
+                weight=4,
+                opacity=0.8,
+                tooltip="Ruta Secuencial Óptima"
+            ).add_to(mapa_ruta)
+            
+        # Renderizar el mapa en Streamlit
+        st_folium(mapa_ruta, width=700, height=500)
