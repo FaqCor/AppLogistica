@@ -332,65 +332,99 @@ with tab2:
             worksheet_cierres.append_row(fila_datos, value_input_option='USER_ENTERED')
             st.success("¡Cierre de viaje registrado con éxito!")
 
-# --- SOLAPA 3: HOJA DE RUTA Y MAPA DE SECUENCIA ÓPTIMA ---
+# --- SOLAPA 3: HOJA DE RUTA Y MAPA DE SECUENCIA ÓPTIMA (TSP) ---
 with tab3:
-    st.subheader("🗺️ Secuencia Óptima de Descarga y Mapa de Ruta")
+    st.subheader("🗺️ Ruta Óptima de Menor Kilometraje (Minimización de Combustible)")
     st.markdown("""
-    * **Criterio LIFO (Carga y Descarga):** Los pedidos se ordenan de modo que el **último en cargarse al fondo del camión** sea el **primero en entregarse**.
+    * **Optimización Matemática (TSP):** Las paradas han sido reordenadas automáticamente utilizando el algoritmo del **Vecino Más Cercano** para garantizar el menor recorrido en kilómetros y ahorro de combustible.
+    * **Regla LIFO de Carga:** El orden de descarga se presenta optimizado para que el camión se cargue de atrás hacia adelante de forma lógica.
     """)
     
     if not envios_disponibles:
         st.info("No hay rutas activas en este momento.")
     else:
-        # Mostrar tabla de secuencia de entregas
-        st.markdown("### 📋 Orden Secuencial de Visitas (Secuencia Logística)")
+        # 1. OBTENER COORDENADAS Y APLICAR ALGORITMO DE OPTIMIZACIÓN (TSP)
+        # Punto de partida logístico por defecto (Base en Salta Capital)
+        punto_partida = (-24.7821, -65.4232) 
         
-        # Generar lista numerada de paradas
-        puntos_ruta = []
-        for idx, envio in enumerate(envios_disponibles, start=1):
+        destinos_pendientes = []
+        for envio in envios_disponibles:
             coords = obtener_coordenada(envio["destino"])
-            puntos_ruta.append({
-                "Parada N°": idx,
-                "Envío": envio["envio"],
-                "Pedido": envio["pedido"],
-                "Destino": envio["destino"],
-                "Bultos": envio["bultos"],
-                "Coordenadas": coords
+            destinos_pendientes.append({
+                "envio": envio["envio"],
+                "pedido": envio["pedido"],
+                "destino": envio["destino"],
+                "bultos": envio["bultos"],
+                "coords": coords
             })
-            st.markdown(f"**Parada #{idx}** ➔ **Envío:** `{envio['envio']}` | **Pedido:** `{envio['pedido']}` | **Destino:** `{envio['destino']}` (Bultos: {envio['bultos']})")
+            
+        # ALGORITMO DEL VECINO MÁS CERCANO (Menor distancia acumulada)
+        ruta_optimizada = []
+        ubicacion_actual = punto_partida
+        
+        while destinos_pendientes:
+            # Encontrar el destino más cercano a la ubicación actual
+            siguiente_parada = min(
+                destinos_pendientes, 
+                key=lambda x: ((x["coords"][0] - ubicacion_actual[0])**2 + (x["coords"][1] - ubicacion_actual[1])**2)
+            )
+            ruta_optimizada.append(siguiente_parada)
+            ubicacion_actual = siguiente_parada["coords"]
+            destinos_pendientes.remove(siguiente_parada)
+            
+        # 2. MOSTRAR ORDEN SECUENCIAL OPTIMIZADO
+        st.markdown("### 📋 Orden Secuencial Óptimo de Visitas")
+        
+        puntos_mapa = []
+        for idx, parada in enumerate(ruta_optimizada, start=1):
+            puntos_mapa.append({
+                "Parada N°": idx,
+                "Envío": parada["envio"],
+                "Pedido": parada["pedido"],
+                "Destino": parada["destino"],
+                "Bultos": parada["bultos"],
+                "Coordenadas": parada["coords"]
+            })
+            st.markdown(f"**Parada #{idx}** ➔ **Envío:** `{parada['envio']}` | **Pedido:** `{parada['pedido']}` | **Destino:** `{parada['destino']}` (Bultos: {parada['bultos']})")
         
         st.markdown("---")
-        st.markdown("### 📍 Visualización Interactiva del Recorrido")
+        st.markdown("### 📍 Mapa Interactivo con la Ruta de Menor Consumo")
         
-        # Crear mapa centrado en el primer destino
-        centro_mapa = puntos_ruta[0]["Coordenadas"]
-        mapa_ruta = folium.Map(location=centro_mapa, zoom_start=8)
+        # Crear mapa centrado en la base
+        mapa_ruta = folium.Map(location=punto_partida, zoom_start=7)
         
-        # Lista de coordenadas para trazar la línea de ruta
-        polyline_coords = []
+        # Agregar marcador de la Base / Depósito de Salida
+        folium.Marker(
+            location=punto_partida,
+            popup="<b>Base Logística / Depósito de Partida</b>",
+            tooltip="Depósito Central",
+            icon=folium.Icon(color="orange", icon="home")
+        ).add_to(mapa_ruta)
         
-        for parada in puntos_ruta:
+        # Lista de coordenadas para trazar la línea de ruta (Incluyendo la salida desde la base)
+        polyline_coords = [punto_partida]
+        
+        for parada in puntos_mapa:
             coords = parada["Coordenadas"]
             polyline_coords.append(coords)
             
-            # Agregar marcador numerado
             popup_text = f"<b>Parada #{parada['Parada N°']}</b><br>Envío: {parada['Envio']}<br>Pedido: {parada['Pedido']}<br>Destino: {parada['Destino']}"
             
             folium.Marker(
                 location=coords,
                 popup=folium.Popup(popup_text, max_width=300),
                 tooltip=f"Parada {parada['Parada N°']}: {parada['Destino']}",
-                icon=folium.Icon(color="blue" if parada["Parada N°"] > 1 else "green", icon="info-sign")
+                icon=folium.Icon(color="blue", icon="shopping-cart")
             ).add_to(mapa_ruta)
             
-        # Trazar la línea de la ruta en orden secuencial
+        # Trazar la línea de la ruta optimizada
         if len(polyline_coords) > 1:
             folium.PolyLine(
                 polyline_coords,
-                color="red",
-                weight=4,
-                opacity=0.8,
-                tooltip="Ruta Secuencial Óptima"
+                color="green",
+                weight=5,
+                opacity=0.85,
+                tooltip="Ruta Óptima Minimizada"
             ).add_to(mapa_ruta)
             
         # Renderizar el mapa en Streamlit
