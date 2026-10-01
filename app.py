@@ -8,15 +8,30 @@ import folium
 from streamlit_folium import st_folium
 
 # --- 1. CONFIGURACIÓN DE LA PÁGINA ---
-st.set_page_config(page_title="App Logística - Choferes", page_icon="🚚", layout="centered")
+st.set_page_config(page_title="Portal de Choferes - Logística", page_icon="🚚", layout="centered")
 
-# --- 2. ESTILOS CSS PERSONALIZADOS (Diseño Oscuro / Tarjetas) ---
+# --- 2. ESTILOS CSS MODERNOS PARA PANTALLA TÁCTIL ---
 st.markdown("""
     <style>
     .stApp {
-        background-color: #0b0f19;
+        background-color: #07090e;
         color: #f3f4f6;
         font-family: 'Segoe UI', Roboto, sans-serif;
+    }
+    /* Tarjetas de módulos modernos */
+    .menu-card {
+        background: linear-gradient(145deg, #1e293b 0%, #0f172a 100%);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 20px;
+        padding: 20px;
+        text-align: center;
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4);
+        margin-bottom: 15px;
+        transition: transform 0.2s ease;
+    }
+    .menu-card:hover {
+        transform: translateY(-3px);
+        border-color: #3b82f6;
     }
     .orion-card {
         background: linear-gradient(135deg, rgba(30, 41, 59, 0.7) 0%, rgba(15, 23, 42, 0.9) 100%);
@@ -30,13 +45,15 @@ st.markdown("""
         background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
         color: white;
         border: none;
-        border-radius: 10px;
-        padding: 10px 20px;
+        border-radius: 12px;
+        padding: 12px 20px;
         font-weight: 600;
         width: 100%;
+        box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
     }
     .stButton>button:hover {
         opacity: 0.9;
+        background: linear-gradient(135deg, #2563eb, #1e40af);
     }
     </style>
 """, unsafe_allow_html=True)
@@ -48,23 +65,16 @@ def init_connection():
         "https://spreadsheets.google.com/feeds",
         "https://www.googleapis.com/auth/drive"
     ]
-    
     creds_dict = dict(st.secrets["gcp_service_account"])
-    
-    pk = creds_dict.get("private_key", "")
-    pk = pk.replace("\\n", "\n")
-    
+    pk = creds_dict.get("private_key", "").replace("\\n", "\n")
     if "BEGIN PRIVATE KEY" in pk:
         lines = [l.strip() for l in pk.split("\n") if l.strip()]
-        body_lines = [l for l in lines if "-----" not in l]
-        body = "".join(body_lines)
+        body = "".join([l for l in lines if "-----" not in l])
         formatted_body = "\n".join(body[i:i+64] for i in range(0, len(body), 64))
         pk = f"-----BEGIN PRIVATE KEY-----\n{formatted_body}\n-----END PRIVATE KEY-----\n"
-    
     creds_dict["private_key"] = pk
     creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
-    client = gspread.authorize(creds)
-    return client
+    return gspread.authorize(creds)
 
 client = init_connection()
 
@@ -74,7 +84,7 @@ def get_sheet():
 
 sheet = get_sheet()
 
-# --- 4. BASE DE DATOS DE PINES DE SEGURIDAD ---
+# --- 4. BASE DE DATOS DE PINES ---
 PINES_CHOFERES = {
     "ADRIÁN ROLDÁN": "1234",
     "DIEGO MEDINA": "2345",
@@ -87,7 +97,7 @@ PINES_CHOFERES = {
     "FELIX NICOLÁS": "3333"
 }
 
-# --- 5. COORDENADAS Y CORREDORES GEOGRÁFICOS ---
+# --- 5. COORDENADAS Y CORREDORES ---
 COORDS_DESTINOS = {
     "salta": (-24.7821, -65.4232),
     "jujuy": (-24.1858, -65.2995),
@@ -95,29 +105,19 @@ COORDS_DESTINOS = {
     "tucuman": (-26.8083, -65.2176),
     "san miguel de tucuman": (-26.8083, -65.2176),
     "catamarca": (-28.4696, -65.7852),
-    "san fernando del valle de catamarca": (-28.4696, -65.7852),
     "santiago del estero": (-27.7951, -64.2615),
     "la rioja": (-29.4131, -66.8558),
-    "formosa": (-26.1853, -58.1758),
     "chaco": (-27.4512, -58.9866),
     "resistencia": (-27.4512, -58.9866),
-    "corrientes": (-27.4692, -58.8306)
+    "corrientes": (-27.4692, -58.8306),
+    "formosa": (-26.1853, -58.1758)
 }
 
 ORDEN_CORREDOR = {
-    "salta": 1,
-    "jujuy": 2,
-    "san salvador de jujuy": 2,
-    "tucuman": 3,
-    "san miguel de tucuman": 3,
-    "catamarca": 4,
-    "san fernando del valle de catamarca": 4,
-    "santiago del estero": 5,
-    "la rioja": 6,
-    "chaco": 7,
-    "resistencia": 7,
-    "corrientes": 8,
-    "formosa": 9
+    "salta": 1, "jujuy": 2, "san salvador de jujuy": 2,
+    "tucuman": 3, "san miguel de tucuman": 3, "catamarca": 4,
+    "santiago del estero": 5, "la rioja": 6, "chaco": 7,
+    "resistencia": 7, "corrientes": 8, "formosa": 9
 }
 
 def obtener_coordenada(destino_str):
@@ -147,32 +147,26 @@ def obtener_asignaciones_chofer(chofer):
                 envio = str(row_lower.get("envio n°", row_lower.get("envio", "ENV-000")))
                 pedido = str(row_lower.get("pedido n°", row_lower.get("pedido", "PED-000")))
                 dominio = str(row_lower.get("dominio", row_lower.get("patente", "Sin Asignar")))
-                
                 bultos_raw = row_lower.get("cantidad de bulto", row_lower.get("bultos", 1))
                 bultos = int(bultos_raw) if str(bultos_raw).isdigit() else 1
-                
                 destino = str(row_lower.get("destino", "Sin Destino"))
                 estado = str(row_lower.get("estado", "Pendiente"))
                 
                 if estado.strip().lower() != "entregado":
                     patente_asignada = dominio
                     envios_lista.append({
-                        "envio": envio,
-                        "pedido": pedido,
-                        "bultos": bultos,
-                        "destino": destino,
-                        "dominio": dominio
+                        "envio": envio, "pedido": pedido, "bultos": bultos,
+                        "destino": destino, "dominio": dominio
                     })
     except Exception as e:
         st.error(f"Error al leer la solapa Asignación: {e}")
-    
     return patente_asignada, envios_lista
 
-# --- 6. GESTIÓN DE ACCESO Y SEGURIDAD ---
-st.markdown("<h1 style='text-align: center; margin-bottom: 20px;'>PORTAL DEL CHOFER - OPERACIONES</h1>", unsafe_allow_html=True)
+# --- 6. AUTENTICACIÓN ---
+st.markdown("<h1 style='text-align: center; margin-bottom: 5px;'>🚚 PORTAL TÁCTIL DE CHOFERES</h1>", unsafe_allow_html=True)
+st.markdown("<p style='text-align: center; color: #94a3b8; margin-bottom: 25px;'>Sistema Operativo de Flota y Logística</p>", unsafe_allow_html=True)
 
 choferes_lista = list(PINES_CHOFERES.keys())
-
 params = st.query_params
 chofer_en_url = params.get("chofer", None)
 es_encargado = params.get("admin", None) == "logadmin2026"
@@ -180,57 +174,50 @@ es_encargado = params.get("admin", None) == "logadmin2026"
 if es_encargado:
     with st.sidebar:
         st.header("Panel de Logística")
-        chofer_seleccionado_admin = st.selectbox("Seleccionar chofer para crear link:", choferes_lista)
-        url_base = "applogistica-zcpbhxepee55agsgxq6rwd.streamlit.app" 
-        link_wpp = f"{url_base}/?chofer={chofer_seleccionado_admin.replace(' ', '%20')}"
-        st.markdown(f"**Link seguro para WhatsApp:**")
+        chofer_sel_admin = st.selectbox("Crear enlace para chofer:", choferes_lista)
+        link_wpp = f"applogistica-zcpbhxepee55agsgxq6rwd.streamlit.app/?chofer={chofer_sel_admin.replace(' ', '%20')}"
         st.code(link_wpp, language="markdown")
 else:
     st.markdown("""<style>[data-testid="stSidebar"] { display: none; }</style>""", unsafe_allow_html=True)
 
-if not chofer_en_url:
-    st.info("👋 **Bienvenido al Sistema de Logística.**")
-    chofer_actual = st.selectbox("Seleccione su Nombre y Apellido para ingresar:", choferes_lista)
-else:
-    chofer_actual = chofer_en_url
+chofer_actual = chofer_en_url if chofer_en_url else st.selectbox("Seleccione su Nombre y Apellido:", choferes_lista)
 
-# Control de sesión por PIN
 if "autenticado" not in st.session_state:
     st.session_state.autenticado = False
 if "chofer_auth" not in st.session_state:
     st.session_state.chofer_auth = None
 if "checklist_realizado" not in st.session_state:
     st.session_state.checklist_realizado = False
+if "menu_activo" not in st.session_state:
+    st.session_state.menu_activo = "Home"
 
 if st.session_state.chofer_auth != chofer_actual:
     st.session_state.autenticado = False
     st.session_state.chofer_auth = chofer_actual
     st.session_state.checklist_realizado = False
+    st.session_state.menu_activo = "Home"
 
 if not st.session_state.autenticado:
-    st.info(f"🔒 Identidad detectada para: **{chofer_actual}**")
+    st.info(f"🔒 Identidad detectada: **{chofer_actual}**")
     with st.form("form_pin"):
-        pin_ingresado = st.text_input("Ingrese su PIN de seguridad de 4 dígitos:", type="password")
-        btn_login = st.form_submit_button("INGRESAR AL SISTEMA")
-        
-        if btn_login:
-            pin_correcto = PINES_CHOFERES.get(chofer_actual, "")
-            if pin_ingresado.strip() == pin_correcto:
+        pin_ingresado = st.text_input("Ingrese su PIN de 4 dígitos:", type="password")
+        if st.form_submit_button("INGRESAR AL SISTEMA"):
+            if pin_ingresado.strip() == PINES_CHOFERES.get(chofer_actual, ""):
                 st.session_state.autenticado = True
-                st.success("¡Acceso autorizado!")
                 st.rerun()
             else:
-                st.error("❌ PIN incorrecto. Verifique con logística.")
+                st.error("❌ PIN incorrecto.")
     st.stop()
 
-# Botón para cerrar sesión
-col_sesion1, col_sesion2 = st.columns([3, 1])
-with col_sesion1:
-    st.success(f"🔓 Sesión iniciada: **{chofer_actual}**")
-with col_sesion2:
+# Barra superior de sesión
+col_ses1, col_ses2 = st.columns([3, 1])
+with col_ses1:
+    st.success(f"🔓 Chofer activo: **{chofer_actual}**")
+with col_ses2:
     if st.button("Cerrar Sesión"):
         st.session_state.autenticado = False
         st.session_state.checklist_realizado = False
+        st.session_state.menu_activo = "Home"
         st.query_params.clear()
         st.rerun()
 
@@ -239,274 +226,236 @@ patente_asignada, envios_disponibles = obtener_asignaciones_chofer(chofer_actual
 if "envio_index" not in st.session_state:
     st.session_state.envio_index = 0
 
-if st.session_state.envio_index >= len(envios_disponibles) and len(envios_disponibles) > 0:
-    st.session_state.envio_index = 0
+# --- 7. CONTROL DE FLUJO Y PANTALLA PRINCIPAL (ESTILO TÁCTIL / TABLET) ---
 
-# --- 7. ORGANIZACIÓN DE SOLAPAS ---
-# El checklist es obligatorio y OBLIGA a completarse primero. Las demás solapas se bloquean si no está hecho.
+# Si el checklist NO está hecho, forzamos la vista obligatoria del Checklist
 if not st.session_state.checklist_realizado:
-    st.warning("⚠️ **ATENCIÓN:** Por normas de seguridad y calidad, es obligatorio completar y enviar el **Checklist Pre-operacional** para habilitar la salida del camión y acceder al resto de las funciones.")
+    st.warning("⚠️ **CHECKLIST OBLIGATORIO:** Para habilitar la salida del camión y desbloquear el menú principal, debe completar la inspección.")
     
-    tabs = st.tabs(["📋 1. Checklist Pre-operacional (OBLIGATORIO)"])
-    tab_check = tabs[0]
+    st.markdown("<div class='orion-card'><h3>📋 1. Checklist Pre-operacional</h3><p style='color:#94a3b8;'>Verificación obligatoria de la unidad asignada.</p></div>", unsafe_allow_html=True)
     
-    with tab_check:
-        st.markdown("""
-            <div class="orion-card">
-                <h3>📋 Inspección Diaria del Vehículo</h3>
-                <p style='color: #94a3b8;'>Verificá el estado general de la unidad antes de iniciar tu recorrido.</p>
-            </div>
-        """, unsafe_allow_html=True)
+    with st.form("form_checklist_obligatorio"):
+        col1, col2 = st.columns(2)
+        with col1:
+            st.text_input("Chofer", value=chofer_actual, disabled=True)
+            # DOMINIO BLOQUEADO E INMUTABLE
+            patente_in = st.text_input("Patente / Dominio Asignado (Bloqueado)", value=patente_asignada, disabled=True)
+            neumaticos = st.checkbox("Presión y estado de neumáticos OK")
+            luces = st.checkbox("Luces altas, bajas y guiños OK")
+        with col2:
+            kilometraje = st.number_input("Kilometraje Actual (Km)", min_value=0, step=100)
+            frenos = st.checkbox("Sistema de frenos y estacionamiento OK")
+            fluidos = st.checkbox("Niveles de agua y aceite OK")
+            documentacion = st.checkbox("Documentación y seguros vigentes OK")
         
-        with st.form("form_checklist"):
-            col1, col2 = st.columns(2)
-            with col1:
-                chofer_in = st.text_input("Chofer", value=chofer_actual, disabled=True)
-                patente_in = st.text_input("Patente / Unidad Asignada", value=patente_asignada)
-                neumaticos = st.checkbox("Presión y estado de neumáticos OK")
-                luces = st.checkbox("Luces altas, bajas y guiños OK")
-            with col2:
-                kilometraje = st.number_input("Kilometraje Actual (Km)", min_value=0, step=100)
-                frenos = st.checkbox("Sistema de frenos y estacionamiento OK")
-                fluidos = st.checkbox("Niveles de agua y aceite OK")
-                documentacion = st.checkbox("Documentación y seguros vigentes OK")
-            
-            submitted_check = st.form_submit_button("APROBAR Y ENVIAR CHECKLIST")
-            if submitted_check:
-                if patente_in and neumaticos and luces and frenos and fluidos and documentacion:
-                    # Guardar opcionalmente en Google Sheets si existe la solapa de checklist
-                    try:
-                        ws_check = sheet.worksheet("Checklist")
-                    except:
-                        ws_check = sheet.add_worksheet(title="Checklist", rows=100, cols=10)
-                        ws_check.append_row(["Fecha", "Chofer", "Patente", "Km", "Estado"])
-                    
-                    ws_check.append_row([datetime.now().strftime("%Y-%m-%d %H:%M"), chofer_actual, patente_in, kilometraje, "Aprobado"])
-                    
-                    st.session_state.checklist_realizado = True
-                    st.success("✅ ¡Checklist aprobado con éxito! Desbloqueando herramientas de viaje...")
-                    st.rerun()
-                else:
-                    st.error("❌ Para habilitar la salida del camión, debés tildar todos los puntos de control obligatorios.")
-else:
-    # SI YA ESTÁ REALIZADO EL CHECKLIST, SE ABREN TODAS LAS SOLAPAS OPERATIVAS
-    tab1, tab2, tab3, tab4, tab5 = st.tabs([
-        "📦 1. Entregas", 
-        "📊 2. Cierre de Viaje", 
-        "🗺️ 3. Hoja de Ruta", 
-        "⚠️ 4. Incidentes", 
-        "💳 5. Viáticos"
-    ])
-
-    # --- SOLAPA 1: ENTREGAS ---
-    with tab1:
-        st.subheader("Registro de Entrega")
-        if not envios_disponibles:
-            st.success("🎉 ¡Felicitaciones! No tienes envíos pendientes asignados en este momento.")
-        else:
-            envio_actual_dict = envios_disponibles[st.session_state.envio_index]
-            envio_asignado = envio_actual_dict["envio"]
-            pedido_asignado = envio_actual_dict["pedido"]
-            bultos_asignados = envio_actual_dict["bultos"]
-            destino_asignado = envio_actual_dict["destino"]
-            patente_asignada = envio_actual_dict["dominio"]
-
-            if len(envios_disponibles) > 1:
-                opciones_envios = [f"{e['envio']} - Pedido: {e['pedido']} (Destino: {e['destino']})" for e in envios_disponibles]
-                envio_seleccionado = st.selectbox(
-                    "Seleccione el Envío a procesar:", 
-                    opciones_envios, 
-                    index=st.session_state.envio_index
-                )
-                st.session_state.envio_index = opciones_envios.index(envio_seleccionado)
-                envio_actual_dict = envios_disponibles[st.session_state.envio_index]
-                envio_asignado = envio_actual_dict["envio"]
-                pedido_asignado = envio_actual_dict["pedido"]
-                bultos_asignados = envio_actual_dict["bultos"]
-                destino_asignado = envio_actual_dict["destino"]
-                patente_asignada = envio_actual_dict["dominio"]
-            else:
-                st.info(f"📍 **Destino Asignado:** {destino_asignado}")
-
-            with st.form("form_entregas"):
-                fecha_actual = datetime.now().strftime("%Y-%m-%d")
-                envio_n = st.text_input("Envío N°", value=envio_asignado, disabled=True)
-                pedido_n = st.text_input("Pedido N°", value=pedido_asignado, disabled=True)
-                patente_s1 = st.text_input("Dominio / Patente", value=patente_asignada, disabled=True)
-                destino_s1 = st.text_input("Destino", value=destino_asignado, disabled=True)
-                cant_bultos = st.number_input("Cantidad de bulto", min_value=1, value=bultos_asignados, disabled=True)
+        if st.form_submit_button("APROBAR Y DESBLOQUEAR SISTEMA"):
+            if neumaticos and luces and frenos and fluidos and documentacion:
+                try:
+                    ws_check = sheet.worksheet("Checklist")
+                except:
+                    ws_check = sheet.add_worksheet(title="Checklist", rows=100, cols=10)
+                    ws_check.append_row(["Fecha", "Chofer", "Patente", "Km", "Estado"])
                 
-                estado_entrega = st.selectbox("Estado", ["ENTREGADO", "NO ENTREGADO"])
+                ws_check.append_row([datetime.now().strftime("%Y-%m-%d %H:%M"), chofer_actual, patente_asignada, kilometraje, "Aprobado"])
+                st.session_state.checklist_realizado = True
+                st.success("✅ ¡Checklist aprobado con éxito! Desbloqueando menú principal...")
+                st.rerun()
+            else:
+                st.error("❌ Debe tildar todos los puntos de control obligatorios para salir.")
+
+else:
+    # --- MENÚ TÁCTIL PRINCIPAL (6 MÓDULOS DE ACCESO RÁPIDO) ---
+    if st.session_state.menu_activo == "Home":
+        st.markdown("### 🎛️ Panel de Operaciones")
+        st.markdown("Seleccione el módulo en el que desea trabajar:")
+        
+        # Fila 1 de botones táctiles
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            st.markdown("<div class='menu-card'><h3>⛽</h3><h4>Viáticos</h4><p style='font-size:12px; color:#94a3b8;'>Gastos y rendiciones</p></div>", unsafe_allow_html=True)
+            if st.button("Abrir Viáticos"):
+                st.session_state.menu_activo = "Viáticos"
+                st.rerun()
+        with c2:
+            st.markdown("<div class='menu-card'><h3>🛠️</h3><h4>Mecánica</h4><p style='font-size:12px; color:#94a3b8;'>Estado técnico unidad</p></div>", unsafe_allow_html=True)
+            if st.button("Abrir Mecánica"):
+                st.session_state.menu_activo = "Mecánica"
+                st.rerun()
+        with c3:
+            st.markdown("<div class='menu-card'><h3>⚙️️</h3><h4>Cierre de Viaje</h4><p style='font-size:12px; color:#94a3b8;'>Odómetro y cierre</p></div>", unsafe_allow_html=True)
+            if st.button("Abrir Cierre"):
+                st.session_state.menu_activo = "Cierre"
+                st.rerun()
+
+        # Fila 2 de botones táctiles
+        c4, c5, c6 = st.columns(3)
+        with c4:
+            st.markdown("<div class='menu-card'><h3>🧳</h3><h4>Entregas</h4><p style='font-size:12px; color:#94a3b8;'>Remitos y cobros</p></div>", unsafe_allow_html=True)
+            if st.button("Abrir Entregas"):
+                st.session_state.menu_activo = "Entregas"
+                st.rerun()
+        with c5:
+            st.markdown("<div class='menu-card'><h3>🚦</h3><h4>Incidentes</h4><p style='font-size:12px; color:#94a3b8;'>Reportar novedades</p></div>", unsafe_allow_html=True)
+            if st.button("Abrir Incidentes"):
+                st.session_state.menu_activo = "Incidentes"
+                st.rerun()
+        with c6:
+            st.markdown("<div class='menu-card'><h3>🗺️</h3><h4>Hoja de Ruta</h4><p style='font-size:12px; color:#94a3b8;'>Mapa y corredores</p></div>", unsafe_allow_html=True)
+            if st.button("Abrir Ruta"):
+                st.session_state.menu_activo = "Ruta"
+                st.rerun()
+
+    else:
+        # Botón de retorno al menú principal
+        if st.button("⬅️ VOLVER AL MENÚ PRINCIPAL"):
+            st.session_state.menu_activo = "Home"
+            st.rerun()
+        st.markdown("---")
+
+        # --- MÓDULO 1: ENTREGAS ---
+        if st.session_state.menu_activo == "Entregas":
+            st.subheader("📦 Registro de Entregas")
+            if not envios_disponibles:
+                st.success("🎉 No tienes envíos pendientes asignados en este momento.")
+            else:
+                envio_actual_dict = envios_disponibles[st.session_state.envio_index]
+                if len(envios_disponibles) > 1:
+                    opciones = [f"{e['envio']} - Pedido: {e['pedido']} ({e['destino']})" for e in envios_disponibles]
+                    sel = st.selectbox("Seleccione envío:", opciones, index=st.session_state.envio_index)
+                    st.session_state.envio_index = opciones.index(sel)
+                    envio_actual_dict = envios_disponibles[st.session_state.envio_index]
+
+                with st.form("form_entregas_mod"):
+                    envio_n = st.text_input("Envío N°", value=envio_actual_dict["envio"], disabled=True)
+                    pedido_n = st.text_input("Pedido N°", value=envio_actual_dict["pedido"], disabled=True)
+                    patente_s1 = st.text_input("Dominio", value=envio_actual_dict["dominio"], disabled=True)
+                    destino_s1 = st.text_input("Destino", value=envio_actual_dict["destino"], disabled=True)
+                    cant_bultos = st.number_input("Cantidad de bultos", value=envio_actual_dict["bultos"], disabled=True)
+                    
+                    estado_entrega = st.selectbox("Estado", ["ENTREGADO", "NO ENTREGADO"])
+                    forma_cobro = st.selectbox("Forma de cobro", ["Efectivo", "Transferencia", "Cheque", "Sin Cobro"])
+                    monto = st.number_input("Monto ($)", min_value=0.0, step=0.01)
+                    
+                    if st.form_submit_button("REGISTRAR ENTREGA"):
+                        try:
+                            ws_ent = sheet.worksheet("Entregas")
+                        except:
+                            ws_ent = sheet.add_worksheet(title="Entregas", rows=100, cols=10)
+                            ws_ent.append_row(["Fecha", "Envio N°", "Pedido N°", "Cantidad de bultos", "Estado", "Forma de cobro", "Monto"])
+                        
+                        ws_ent.append_row([datetime.now().strftime("%Y-%m-%d %H:%M"), envio_n, pedido_n, cant_bultos, estado_entrega, forma_cobro, monto])
+                        
+                        try:
+                            ws_asig = sheet.worksheet("Asignación")
+                            cell = ws_asig.find(envio_n)
+                            if cell:
+                                ws_asig.update_cell(cell.row, 8, estado_entrega)
+                        except:
+                            pass
+
+                        st.success("¡Entrega registrada con éxito!")
+                        if st.session_state.envio_index < len(envios_disponibles) - 1:
+                            st.session_state.envio_index += 1
+                        else:
+                            st.session_state.envio_index = 0
+                        st.rerun()
+
+        # --- MÓDULO 2: CIERRE DE VIAJE ---
+        elif st.session_state.menu_activo == "Cierre":
+            st.subheader("⚙️ Cierre de Viaje y Rendición")
+            with st.form("form_cierre_mod"):
+                vehiculo_id = st.text_input("Dominio", value=patente_asignada, disabled=True)
+                envio_cierre = st.text_input("Envío Actual", value=envios_disponibles[st.session_state.envio_index]["envio"] if envios_disponibles else "ENV-000", disabled=True)
+                finalizo_viaje = st.selectbox("¿Finalizó el viaje?", ["Sí", "No"])
+                km_actual = st.number_input("Kilometraje Actual", min_value=0.0, step=1.0)
+                foto_odometro = st.file_uploader("Foto del Odómetro", type=["jpg", "jpeg", "png"])
+                
+                if st.form_submit_button("FINALIZAR Y ENVIAR CIERRE"):
+                    link_foto = "Sin foto"
+                    try:
+                        ws_cierres = sheet.worksheet("Cierres")
+                    except:
+                        ws_cierres = sheet.add_worksheet(title="Cierres", rows=100, cols=10)
+                        ws_cierres.append_row(["Fecha", "Chofer", "Patente", "Envio", "Finalizo Viaje", "Km Actual", "Observaciones", "Acceso Foto Odómetro"])
+
+                    ws_cierres.append_row([
+                        datetime.now().strftime("%Y-%m-%d %H:%M"), chofer_actual, vehiculo_id, envio_cierre, 
+                        finalizo_viaje, km_actual, "Sin observaciones", link_foto
+                    ], value_input_option='USER_ENTERED')
+                    st.success("¡Cierre de viaje registrado con éxito!")
+
+        # --- MÓDULO 3: HOJA DE RUTA Y MAPA ---
+        elif st.session_state.menu_activo == "Ruta":
+            st.subheader("🗺️ Hoja de Ruta Óptima")
+            if not envios_disponibles:
+                st.info("No hay rutas activas.")
+            else:
+                envios_ordenados = sorted(envios_disponibles, key=lambda x: obtener_peso_destino(x["destino"]))
+                punto_partida = (-24.7821, -65.4232)
+                
+                puntos_mapa = []
+                for idx, envio in enumerate(envios_ordenados, start=1):
+                    coords = obtener_coordenada(envio["destino"])
+                    puntos_mapa.append({"parada": idx, "envio": envio["envio"], "pedido": envio["pedido"], "destino": envio["destino"], "bultos": envio["bultos"], "coords": coords})
+
+                for p in puntos_mapa:
+                    st.markdown(f"**Parada #{p['parada']}** ➔ Envío: `{p['envio']}` | Destino: **{p['destino']}** (Bultos: {p['bultos']})")
                 
                 st.markdown("---")
-                st.markdown("### Información de Cobro")
-                forma_cobro = st.selectbox("Forma de cobro", ["Efectivo", "Transferencia", "Cheque", "Sin Cobro"])
-                monto = st.number_input("Monto ($)", min_value=0.0, step=0.01)
+                mapa_ruta = folium.Map(location=punto_partida, zoom_start=7)
+                folium.Marker(location=punto_partida, popup="Depósito Salta", icon=folium.Icon(color="orange", icon="home")).add_to(mapa_ruta)
                 
-                btn_enviar_1 = st.form_submit_button("ENVIAR ENTREGA")
+                polyline_coords = [punto_partida]
+                for p in puntos_mapa:
+                    polyline_coords.append(p["coords"])
+                    folium.Marker(location=p["coords"], popup=f"Parada #{p['parada']}: {p['destino']}", icon=folium.Icon(color="green", icon="shopping-cart")).add_to(mapa_ruta)
                 
-                if btn_enviar_1:
-                    try:
-                        worksheet_entregas = sheet.worksheet("Entregas")
-                    except:
-                        worksheet_entregas = sheet.add_worksheet(title="Entregas", rows=100, cols=10)
-                        worksheet_entregas.append_row(["Fecha", "Envio N°", "Pedido N°", "Cantidad de bultos", "Estado", "Forma de cobro", "Monto"])
-
-                    fila_entrega = [fecha_actual, envio_n, pedido_n, cant_bultos, estado_entrega, forma_cobro, monto]
-                    worksheet_entregas.append_row(fila_entrega, value_input_option='USER_ENTERED')
-                    
-                    try:
-                        ws_asig = sheet.worksheet("Asignación")
-                        cell = ws_asig.find(envio_n)
-                        if cell:
-                            ws_asig.update_cell(cell.row, 8, estado_entrega)
-                    except:
-                        pass
-
-                    st.success(f"¡Entrega del envío {envio_n} registrada con éxito!")
-                    if st.session_state.envio_index < len(envios_disponibles) - 1:
-                        st.session_state.envio_index += 1
-                    else:
-                        st.session_state.envio_index = 0
-                    st.rerun()
-
-    # --- SOLAPA 2: CIERRE DE VIAJE ---
-    with tab2:
-        st.subheader("Cierre de Viaje y Rendición")
-        with st.form("form_cierre"):
-            fecha_cierre = datetime.now().strftime("%Y-%m-%d")
-            vehiculo_id = st.text_input("Dominio del Vehículo", value=patente_asignada, disabled=True)
-            envio_cierre = st.text_input("Envío N° Actual", value=envios_disponibles[st.session_state.envio_index]["envio"] if envios_disponibles else "ENV-000", disabled=True)
-            
-            st.markdown("---")
-            finalizo_viaje = st.selectbox("¿Finalizó viaje?", ["Sí", "No"])
-            km_actual = st.number_input("Km Actual del Odómetro", min_value=0.0, value=0.0, step=1.0)
-            foto_odometro = st.file_uploader("Subir foto del odómetro", type=["jpg", "jpeg", "png"])
-            
-            btn_enviar_2 = st.form_submit_button("FINALIZAR Y ENVIAR CIERRE DE VIAJE")
-            
-            if btn_enviar_2:
-                link_foto = "Sin foto"
-                if foto_odometro is not None:
-                    try:
-                        img = Image.open(foto_odometro)
-                        img.thumbnail((800, 800))
-                        if img.mode in ("RGBA", "P"):
-                            img = img.convert("RGB")
-                        buffered = io.BytesIO()
-                        img.save(buffered, format="JPEG", quality=85)
-                        folder_id = "1THxT45-t-VFWU0JmWD2kR2WDCwmA9vdW"
-                        link_foto = f'=HYPERLINK("https://drive.google.com/drive/folders/{folder_id}", "Abrir Carpeta Drive")'
-                    except Exception as img_err:
-                        link_foto = "Error procesando imagen"
-                        st.warning(f"No se pudo optimizar la foto: {img_err}")
-
-                try:
-                    worksheet_cierres = sheet.worksheet("Cierres")
-                except:
-                    worksheet_cierres = sheet.add_worksheet(title="Cierres", rows=100, cols=10)
-                    worksheet_cierres.append_row(["Fecha", "Chofer", "Patente", "Envio", "Finalizo Viaje", "Km Actual", "Observaciones", "Acceso Foto Odómetro"])
-
-                fila_datos = [
-                    fecha_cierre, chofer_actual, vehiculo_id, envio_cierre, 
-                    finalizo_viaje, km_actual, "Sin observaciones", link_foto
-                ]
-                worksheet_cierres.append_row(fila_datos, value_input_option='USER_ENTERED')
-                st.success("¡Cierre de viaje registrado con éxito!")
-
-    # --- SOLAPA 3: HOJA DE RUTA Y MAPA ---
-    with tab3:
-        st.subheader("🗺️ Ruta Óptima de Menor Kilometraje (Corredores Logísticos)")
-        st.markdown("* **Optimización por Corredor Vial:** Paradas reordenadas para evitar saltos ineficientes.")
-        
-        if not envios_disponibles:
-            st.info("No hay rutas activas en este momento.")
-        else:
-            envios_ordenados = sorted(envios_disponibles, key=lambda x: obtener_peso_destino(x["destino"]))
-            punto_partida = (-24.7821, -65.4232)
-            
-            puntos_mapa = []
-            for idx, envio in enumerate(envios_ordenados, start=1):
-                coords = obtener_coordenada(envio["destino"])
-                puntos_mapa.append({
-                    "parada": idx, "envio": envio["envio"], "pedido": envio["pedido"],
-                    "destino": envio["destino"], "bultos": envio["bultos"], "coords": coords
-                })
-
-            st.markdown("### 📋 Orden Secuencial Óptimo de Visitas")
-            for parada in puntos_mapa:
-                st.markdown(f"**Parada #{parada['parada']}** ➔ **Envío:** `{parada['envio']}` | **Pedido:** `{parada['pedido']}` | **Destino:** `{parada['destino']}` (Bultos: {parada['bultos']})")
-            
-            st.markdown("---")
-            st.markdown("### 📍 Mapa Interactivo con la Ruta Optimizada")
-            mapa_ruta = folium.Map(location=punto_partida, zoom_start=7)
-            
-            folium.Marker(
-                location=punto_partida,
-                popup="<b>Depósito Central (Salta)</b>",
-                tooltip="Depósito",
-                icon=folium.Icon(color="orange", icon="home")
-            ).add_to(mapa_ruta)
-            
-            polyline_coords = [punto_partida]
-            for parada in puntos_mapa:
-                coords = parada["coords"]
-                polyline_coords.append(coords)
-                popup_text = f"<b>Parada #{parada['parada']}</b><br>Envío: {parada['envio']}<br>Destino: {parada['destino']}"
-                folium.Marker(
-                    location=coords,
-                    popup=folium.Popup(popup_text, max_width=300),
-                    tooltip=f"Parada {parada['parada']}: {parada['destino']}",
-                    icon=folium.Icon(color="green", icon="shopping-cart")
-                ).add_to(mapa_ruta)
+                if len(polyline_coords) > 1:
+                    folium.PolyLine(polyline_coords, color="green", weight=5, opacity=0.85).add_to(mapa_ruta)
                 
-            if len(polyline_coords) > 1:
-                folium.PolyLine(polyline_coords, color="green", weight=5, opacity=0.85).add_to(mapa_ruta)
-                
-            st_folium(mapa_ruta, width=700, height=500)
+                st_folium(mapa_ruta, width=700, height=450)
 
-    # --- SOLAPA 4: REPORTE DE INCIDENTES ---
-    with tab4:
-        st.subheader("⚠️ Reporte de Novedades o Incidentes")
-        with st.form("form_incidente"):
-            col1, col2 = st.columns(2)
-            with col1:
+        # --- MÓDULO 4: INCIDENTES ---
+        elif st.session_state.menu_activo == "Incidentes":
+            st.subheader("⚠️️ Reporte de Novedades e Incidentes")
+            with st.form("form_inc_mod"):
                 id_viaje = st.text_input("Número de Viaje / ID")
-                tipo_incidente = st.selectbox("Tipo de Incidente", [
-                    "Falla mecánica", "Demora por tráfico / Corte de ruta", "Incidente climático", "Otro"
-                ])
-            with col2:
-                ubicacion = st.text_input("Ubicación aproximada (Kilómetro / Zona)")
+                tipo_incidente = st.selectbox("Tipo de Incidente", ["Falla mecánica", "Demora por tráfico", "Incidente climático", "Otro"])
+                ubicacion = st.text_input("Ubicación aproximada (Km / Zona)")
+                descripcion = st.text_area("Descripción detallada del problema")
                 
-            descripcion = st.text_area("Descripción detallada del problema")
-            foto_evidencia = st.file_uploader("Adjuntar foto de evidencia (opcional)", type=["jpg", "png", "jpeg"])
-            
-            submitted_inc = st.form_submit_button("Enviar Alerta de Incidente")
-            if submitted_inc:
-                if id_viaje and descripcion:
-                    st.error("⚠️ Incidente reportado y derivado al área de logística de inmediato.")
-                else:
-                    st.warning("Completá el número de viaje y la descripción.")
+                if st.form_submit_button("ENVIAR ALERTA DE INCIDENTE"):
+                    if id_viaje and descripcion:
+                        st.error("⚠️ Incidente reportado exitosamente al área de operaciones.")
+                    else:
+                        st.warning("Complete el número de viaje y la descripción.")
 
-    # --- SOLAPA 5: GESTIÓN DE VIÁTICOS ---
-    with tab5:
-        st.subheader("💳 Rendición de Viáticos y Gastos")
-        with st.form("form_viaticos"):
-            col1, col2 = st.columns(2)
-            with col1:
+        # --- MÓDULO 5: VIÁTICOS ---
+        elif st.session_state.menu_activo == "Viáticos":
+            st.subheader("💳 Rendición de Viáticos y Gastos")
+            with st.form("form_viat_mod"):
                 viaje_v = st.text_input("Número de Viaje asociado")
-                categoria_gasto = st.selectbox("Concepto", [
-                    "Peaje", "Combustible extra", "Estacionamiento", "Reparación de emergencia", "Comida / Viático diario"
-                ])
-            with col2:
+                categoria_gasto = st.selectbox("Concepto", ["Peaje", "Combustible extra", "Estacionamiento", "Reparación", "Comida / Viático"])
                 monto = st.number_input("Monto total ($)", min_value=0.0, format="%.2f")
                 fecha_gasto = st.date_input("Fecha del gasto")
                 
-            comprobante = st.file_uploader("Foto del Ticket / Factura", type=["jpg", "png", "jpeg", "pdf"])
-            
-            submitted_gasto = st.form_submit_button("Guardar Comprobante")
-            if submitted_gasto:
-                if viaje_v and monto > 0:
-                    st.success(f"¡Gasto de ${monto:.2f} registrado correctamente para rendición!")
-                else:
-                    st.warning("Ingresá un número de viaje válido y un monto mayor a cero.")
+                if st.form_submit_button("GUARDAR COMPROBANTE"):
+                    if viaje_v and monto > 0:
+                        st.success(f"¡Gasto de ${monto:.2f} registrado correctamente!")
+                    else:
+                        st.warning("Ingrese un viaje válido y un monto mayor a cero.")
+
+        # --- MÓDULO 6: MECÁNICA (ESTADO TÉCNICO) ---
+        elif st.session_state.menu_activo == "Mecánica":
+            st.subheader("🛠️ Estado Técnico y Mantenimiento")
+            st.markdown(f"""
+                <div class='orion-card'>
+                    <h4>Unidad Asignada: <b>{patente_asignada}</b></h4>
+                    <p style='color:#94a3b8;'>Estado general del vehículo registrado en el último checklist diario.</p>
+                    <hr style='border-color: rgba(255,255,255,0.1);'>
+                    <p>✅ <b>Neumáticos:</b> OK</p>
+                    <p>✅ <b>Sistema eléctrico y luces:</b> OK</p>
+                    <p>✅ <b>Frenos y fluidos:</b> OK</p>
+                </div>
+            """, unsafe_allow_html=True)
+            st.info("Si detecta alguna anomalía mecánica nueva durante su recorrido, repórtela inmediatamente desde el módulo de **Incidentes**.")
