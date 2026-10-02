@@ -163,7 +163,7 @@ def obtener_asignaciones_chofer(chofer):
     return patente_asignada, envios_lista
 
 # --- 6. AUTENTICACIÓN ---
-st.markdown("<h1 style='text-align: center; margin-bottom: 5px;'>🚚 PORTAL TÁCTIL DE CHOFERES</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align: center; margin-bottom: 5px;'>🚚 MENU PRINCIPAL</h1>", unsafe_allow_html=True)
 st.markdown("<p style='text-align: center; color: #94a3b8; margin-bottom: 25px;'>Sistema Operativo de Flota y Logística</p>", unsafe_allow_html=True)
 
 choferes_lista = list(PINES_CHOFERES.keys())
