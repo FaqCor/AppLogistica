@@ -242,7 +242,7 @@ if not st.session_state.checklist_realizado:
             luces = st.checkbox("Luces altas, bajas y guiños OK")
         with col2:
             kilometraje = st.number_input("Kilometraje Actual (Km)", min_value=0, step=100)
-            frenos = st.checkbox("Sistema de frenos y estacionamiento OK")
+            frenos = st.checkbox("Liquido de Freno")
             fluidos = st.checkbox("Niveles de agua y aceite OK")
             documentacion = st.checkbox("Documentación y seguros vigentes OK")
         
