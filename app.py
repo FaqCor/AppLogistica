@@ -228,7 +228,6 @@ if "envio_index" not in st.session_state:
 
 # --- 7. CONTROL DE FLUJO Y PANTALLA PRINCIPAL (ESTILO TÁCTIL / TABLET) ---
 
-# Si el checklist NO está hecho, forzamos la vista obligatoria del Checklist
 if not st.session_state.checklist_realizado:
     st.warning("⚠️ **CHECKLIST OBLIGATORIO:** Para habilitar la salida del camión y desbloquear el menú principal, debe completar la inspección.")
     
@@ -238,7 +237,6 @@ if not st.session_state.checklist_realizado:
         col1, col2 = st.columns(2)
         with col1:
             st.text_input("Chofer", value=chofer_actual, disabled=True)
-            # DOMINIO BLOQUEADO E INMUTABLE
             patente_in = st.text_input("Patente / Dominio Asignado (Bloqueado)", value=patente_asignada, disabled=True)
             neumaticos = st.checkbox("Presión y estado de neumáticos OK")
             luces = st.checkbox("Luces altas, bajas y guiños OK")
@@ -269,7 +267,6 @@ else:
         st.markdown("### 🎛️ Panel de Operaciones")
         st.markdown("Seleccione el módulo en el que desea trabajar:")
         
-        # Fila 1 de botones táctiles
         c1, c2, c3 = st.columns(3)
         with c1:
             st.markdown("<div class='menu-card'><h3>⛽</h3><h4>Viáticos</h4><p style='font-size:12px; color:#94a3b8;'>Gastos y rendiciones</p></div>", unsafe_allow_html=True)
@@ -282,12 +279,11 @@ else:
                 st.session_state.menu_activo = "Mecánica"
                 st.rerun()
         with c3:
-            st.markdown("<div class='menu-card'><h3>⚙️️</h3><h4>Cierre de Viaje</h4><p style='font-size:12px; color:#94a3b8;'>Odómetro y cierre</p></div>", unsafe_allow_html=True)
+            st.markdown("<div class='menu-card'><h3>⚙</h3><h4>Cierre de Viaje</h4><p style='font-size:12px; color:#94a3b8;'>Odómetro y cierre</p></div>", unsafe_allow_html=True)
             if st.button("Abrir Cierre"):
                 st.session_state.menu_activo = "Cierre"
                 st.rerun()
 
-        # Fila 2 de botones táctiles
         c4, c5, c6 = st.columns(3)
         with c4:
             st.markdown("<div class='menu-card'><h3>🧳</h3><h4>Entregas</h4><p style='font-size:12px; color:#94a3b8;'>Remitos y cobros</p></div>", unsafe_allow_html=True)
@@ -306,7 +302,6 @@ else:
                 st.rerun()
 
     else:
-        # Botón de retorno al menú principal
         if st.button("⬅️ VOLVER AL MENÚ PRINCIPAL"):
             st.session_state.menu_activo = "Home"
             st.rerun()
@@ -417,7 +412,7 @@ else:
 
         # --- MÓDULO 4: INCIDENTES ---
         elif st.session_state.menu_activo == "Incidentes":
-            st.subheader("⚠️️ Reporte de Novedades e Incidentes")
+            st.subheader("⚠ Reporte de Novedades e Incidentes")
             with st.form("form_inc_mod"):
                 id_viaje = st.text_input("Número de Viaje / ID")
                 tipo_incidente = st.selectbox("Tipo de Incidente", ["Falla mecánica", "Demora por tráfico", "Incidente climático", "Otro"])
@@ -426,7 +421,17 @@ else:
                 
                 if st.form_submit_button("ENVIAR ALERTA DE INCIDENTE"):
                     if id_viaje and descripcion:
-                        st.error("⚠️ Incidente reportado exitosamente al área de operaciones.")
+                        try:
+                            ws_inc = sheet.worksheet("Incidentes")
+                        except:
+                            ws_inc = sheet.add_worksheet(title="Incidentes", rows=100, cols=10)
+                            ws_inc.append_row(["Fecha", "Chofer", "Patente", "Viaje", "Tipo", "Ubicacion", "Descripcion"])
+                        
+                        ws_inc.append_row([
+                            datetime.now().strftime("%Y-%m-%d %H:%M"), chofer_actual, patente_asignada, 
+                            id_viaje, tipo_incidente, ubicacion, descripcion
+                        ])
+                        st.success("⚠️ Incidente reportado exitosamente al área de operaciones.")
                     else:
                         st.warning("Complete el número de viaje y la descripción.")
 
@@ -436,12 +441,22 @@ else:
             with st.form("form_viat_mod"):
                 viaje_v = st.text_input("Número de Viaje asociado")
                 categoria_gasto = st.selectbox("Concepto", ["Peaje", "Combustible extra", "Estacionamiento", "Reparación", "Comida / Viático"])
-                monto = st.number_input("Monto total ($)", min_value=0.0, format="%.2f")
+                monto_gasto = st.number_input("Monto total ($)", min_value=0.0, format="%.2f")
                 fecha_gasto = st.date_input("Fecha del gasto")
                 
                 if st.form_submit_button("GUARDAR COMPROBANTE"):
-                    if viaje_v and monto > 0:
-                        st.success(f"¡Gasto de ${monto:.2f} registrado correctamente!")
+                    if viaje_v and monto_gasto > 0:
+                        try:
+                            ws_viat = sheet.worksheet("Viaticos")
+                        except:
+                            ws_viat = sheet.add_worksheet(title="Viaticos", rows=100, cols=10)
+                            ws_viat.append_row(["Fecha Registro", "Chofer", "Patente", "Viaje", "Concepto", "Monto", "Fecha Gasto"])
+                        
+                        ws_viat.append_row([
+                            datetime.now().strftime("%Y-%m-%d %H:%M"), chofer_actual, patente_asignada, 
+                            viaje_v, categoria_gasto, monto_gasto, str(fecha_gasto)
+                        ])
+                        st.success(f"¡Gasto de ${monto_gasto:.2f} registrado correctamente!")
                     else:
                         st.warning("Ingrese un viaje válido y un monto mayor a cero.")
 
