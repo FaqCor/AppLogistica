@@ -8,7 +8,7 @@ import folium
 from streamlit_folium import st_folium
 
 # --- 1. CONFIGURACIÓN DE LA PÁGINA ---
-st.set_page_config(page_title="Portal de Choferes - Logística", page_icon="🚚", layout="centered")
+st.set_page_config(page_title="Choferes - Logística", page_icon="🚚", layout="centered")
 
 # --- 2. ESTILOS CSS MODERNOS PARA PANTALLA TÁCTIL ---
 st.markdown("""
