@@ -238,13 +238,13 @@ if not st.session_state.checklist_realizado:
         with col1:
             st.text_input("Chofer", value=chofer_actual, disabled=True)
             patente_in = st.text_input("Patente / Dominio Asignado (Bloqueado)", value=patente_asignada, disabled=True)
-            neumaticos = st.checkbox("Presión y estado de neumáticos OK")
-            luces = st.checkbox("Luces altas, bajas y guiños OK")
+            neumaticos = st.checkbox("Presión y estado de neumáticos")
+            luces = st.checkbox("Luces altas, bajas y guiños")
         with col2:
             kilometraje = st.number_input("Kilometraje Actual (Km)", min_value=0, step=100)
             frenos = st.checkbox("Liquido de Freno")
-            fluidos = st.checkbox("Niveles de agua y aceite OK")
-            documentacion = st.checkbox("Documentación y seguros vigentes OK")
+            fluidos = st.checkbox("Niveles de agua y aceite")
+            documentacion = st.checkbox("Documentación y seguros vigentes")
         
         if st.form_submit_button("APROBAR Y DESBLOQUEAR SISTEMA"):
             if neumaticos and luces and frenos and fluidos and documentacion:
