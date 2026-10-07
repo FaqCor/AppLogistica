@@ -390,8 +390,7 @@ else:
                         else:
                             st.session_state.envio_index = 0
                         st.rerun()
-
-        # --- MÓDULO 2: CIERRE DE VIAJE ---
+       # --- MÓDULO 2: CIERRE DE VIAJE ---
         elif st.session_state.menu_activo == "Cierre":
             st.subheader("⚙️ Cierre de Viaje y Rendición")
             with st.form("form_cierre_mod"):
@@ -404,16 +403,42 @@ else:
                 if st.form_submit_button("FINALIZAR Y ENVIAR CIERRE"):
                     link_foto = "Sin foto"
                     try:
-                        ws_cierres = sheet.worksheet("Cierres")
-                    except:
-                        ws_cierres = sheet.add_worksheet(title="Cierres", rows=100, cols=10)
-                        ws_cierres.append_row(["Fecha", "Chofer", "Patente", "Envio", "Finalizo Viaje", "Km Actual", "Observaciones", "Acceso Foto Odómetro"])
+                        # 1. Guardar en la solapa Cierres
+                        try:
+                            ws_cierres = sheet.worksheet("Cierres")
+                        except:
+                            ws_cierres = sheet.add_worksheet(title="Cierres", rows=100, cols=10)
+                            ws_cierres.append_row(["Fecha", "Chofer", "Patente", "Envio", "Finalizo Viaje", "Km Actual", "Observaciones", "Acceso Foto Odómetro"])
 
-                    ws_cierres.append_row([
-                        datetime.now().strftime("%Y-%m-%d %H:%M"), chofer_actual, vehiculo_id, envio_cierre, 
-                        finalizo_viaje, km_actual, "Sin observaciones", link_foto
-                    ], value_input_option='USER_ENTERED')
-                    st.success("¡Cierre de viaje registrado con éxito!")
+                        ws_cierres.append_row([
+                            datetime.now().strftime("%Y-%m-%d %H:%M"), chofer_actual, vehiculo_id, envio_cierre, 
+                            finalizo_viaje, km_actual, "Sin observaciones", link_foto
+                        ], value_input_option='USER_ENTERED')
+
+                        # 2. Actualizar automáticamente la Base de datos de Vehículos (Columnas D y E)
+                        if patente_asignada and patente_asignada != "Sin Asignar" and km_actual > 0:
+                            ws_vehiculos = sheet.worksheet("Base de datos VEHICULOS")
+                            
+                            # Buscamos en qué fila está la patente (Columna B = columna 2)
+                            celda_patente = ws_vehiculos.find(patente_asignada)
+                            
+                            if celda_patente:
+                                fila_vehiculo = celda_patente.row
+                                
+                                # Leemos lo que hay actualmente en la Columna D (Odómetro actual - columna 4)
+                                km_viejo_col_d = ws_vehiculos.cell(fila_vehiculo, 4).value
+                                
+                                # Movemos el valor viejo a la Columna E (Odómetro anterior - columna 5)
+                                if km_viejo_col_d:
+                                    ws_vehiculos.update_cell(fila_vehiculo, 5, km_viejo_col_d)
+                                
+                                # Escribimos el nuevo kilometraje en la Columna D (Odómetro actual - columna 4)
+                                ws_vehiculos.update_cell(fila_vehiculo, 4, km_actual)
+                                
+                        st.success("¡Cierre de viaje registrado y odómetros actualizados con éxito!")
+                        
+                    except Exception as e:
+                        st.error(f"Error al procesar el cierre: {e}")
 
         # --- MÓDULO 3: HOJA DE RUTA Y MAPA ---
         elif st.session_state.menu_activo == "Ruta":
