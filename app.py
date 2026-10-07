@@ -185,23 +185,18 @@ if es_encargado:
         data_vehiculos = ws_vehiculos.get_all_records()
         df_vehiculos = pd.DataFrame(data_vehiculos)
 
-        # Usamos el data_editor para permitir correcciones manuales
         df_editado = st.data_editor(df_vehiculos, num_rows="fixed", use_container_width=True, key="editor_logistica_admin")
 
         if st.button("💾 Guardar Cambios y Actualizar Odómetros"):
             actualizaciones = 0
             for index, row in df_editado.iterrows():
-                fila_excel = index + 4  # Ajustado a tu estructura de Google Sheets donde los datos arrancan en la fila 4
+                fila_excel = index + 4  # Ajustado a tu estructura donde los datos arrancan en la fila 4
                 
-                # Leer el valor actual físico en la celda D (columna 4)
                 km_actual_en_sheet = ws_vehiculos.cell(fila_excel, 4).value
                 km_nuevo_modificado = row["Odómetro actual (km/horas)"]
                 
-                # Si el encargado modificó o validó un nuevo número
                 if str(km_nuevo_modificado) != str(km_actual_en_sheet) and km_nuevo_modificado != "":
-                    # 1. Pasamos el valor actual viejo a la columna E (Odómetro anterior - columna 5)
                     ws_vehiculos.update_cell(fila_excel, 5, km_actual_en_sheet)
-                    # 2. Guardamos el nuevo valor verificado en la columna D (Odómetro actual - columna 4)
                     ws_vehiculos.update_cell(fila_excel, 4, km_nuevo_modificado)
                     actualizaciones += 1
 
@@ -211,7 +206,7 @@ if es_encargado:
     except Exception as e:
         st.error(f"Error al cargar el panel de logística: {e}")
 
-    st.stop()  # Detenemos la ejecución para que el encargado solo vea su panel de control
+    st.stop()
 
 # -------------------------------------------------------------
 # VISTA NORMAL DE CHOFERES
@@ -262,7 +257,7 @@ patente_asignada, envios_disponibles = obtener_asignaciones_chofer(chofer_actual
 if "envio_index" not in st.session_state:
     st.session_state.envio_index = 0
 
-# --- 7. CONTROL DE FLUJO Y PANTALLA PRINCIPAL (ESTILO TÁCTIL / TABLET) ---
+# --- 7. CONTROL DE FLUJO Y PANTALLA PRINCIPAL ---
 
 if not st.session_state.checklist_realizado:
     st.warning("⚠️ **CHECKLIST OBLIGATORIO:** Para habilitar la salida del camión y desbloquear el menú principal, debe completar la inspección.")
@@ -298,7 +293,7 @@ if not st.session_state.checklist_realizado:
                 st.error("❌ Debe tildar todos los puntos de control obligatorios para salir.")
 
 else:
-    # --- MENÚ TÁCTIL PRINCIPAL (6 MÓDULOS DE ACCESO RÁPIDO) ---
+    # --- MENÚ TÁCTIL PRINCIPAL ---
     if st.session_state.menu_activo == "Home":
         st.markdown("### 🎛️ Panel de Operaciones")
         st.markdown("Seleccione el módulo en el que desea trabajar:")
@@ -390,8 +385,8 @@ else:
                         else:
                             st.session_state.envio_index = 0
                         st.rerun()
-       # --- MÓDULO 2: CIERRE DE VIAJE ---
-       # --- MÓDULO 2: CIERRE DE VIAJE ---
+
+        # --- MÓDULO 2: CIERRE DE VIAJE (ACTUALIZADO CON LA PESTAÑA EXACTA) ---
         elif st.session_state.menu_activo == "Cierre":
             st.subheader("⚙️ Cierre de Viaje y Rendición")
             with st.form("form_cierre_mod"):
@@ -416,45 +411,33 @@ else:
                             finalizo_viaje, km_actual, "Sin observaciones", link_foto
                         ], value_input_option='USER_ENTERED')
 
-                        # 2. Actualizar automáticamente la Base de datos de Vehículos
+                        # 2. Actualizar automáticamente la pestaña "Base de datos VEHICULOS"
                         if patente_asignada and patente_asignada != "Sin Asignar" and km_actual > 0:
-                            # Verificamos las pestañas disponibles en el archivo para evitar errores de nombre exacto
-                            nombres_hojas = [ws.title for ws in sheet.worksheets()]
+                            ws_vehiculos = sheet.worksheet("Base de datos VEHICULOS")
                             
-                            # Buscamos de forma flexible la pestaña de vehículos
-                            nombre_encontrado = None
-                            for nombre in nombres_hojas:
-                                if "vehiculo" in nombre.lower() or "base de datos" in nombre.lower():
-                                    nombre_encontrado = nombre
-                                    break
+                            # Buscamos la patente exacta en la Columna B
+                            celda_patente = ws_vehiculos.find(patente_asignada)
                             
-                            if nombre_encontrado:
-                                ws_vehiculos = sheet.worksheet(nombre_encontrado)
+                            if celda_patente:
+                                fila_vehiculo = celda_patente.row
                                 
-                                # Buscamos la patente (Columna B)
-                                celda_patente = ws_vehiculos.find(patente_asignada)
+                                # Leemos el valor actual de la Columna D (Odómetro actual - columna 4)
+                                km_viejo_col_d = ws_vehiculos.cell(fila_vehiculo, 4).value
                                 
-                                if celda_patente:
-                                    fila_vehiculo = celda_patente.row
-                                    
-                                    # Leemos lo que hay actualmente en la Columna D (Odómetro actual - columna 4)
-                                    km_viejo_col_d = ws_vehiculos.cell(fila_vehiculo, 4).value
-                                    
-                                    # Movemos el valor viejo a la Columna E (Odómetro anterior - columna 5)
-                                    if km_viejo_col_d:
-                                        ws_vehiculos.update_cell(fila_vehiculo, 5, km_viejo_col_d)
-                                    
-                                    # Escribimos el nuevo kilometraje en la Columna D (Odómetro actual - columna 4)
-                                    ws_vehiculos.update_cell(fila_vehiculo, 4, km_actual)
-                                else:
-                                    st.warning(f"No se encontró la patente '{patente_asignada}' en la pestaña '{nombre_encontrado}'.")
+                                # Movemos el valor viejo a la Columna E (Odómetro anterior - columna 5)
+                                if km_viejo_col_d:
+                                    ws_vehiculos.update_cell(fila_vehiculo, 5, km_viejo_col_d)
+                                
+                                # Escribimos el nuevo kilometraje en la Columna D (Odómetro actual - columna 4)
+                                ws_vehiculos.update_cell(fila_vehiculo, 4, km_actual)
                             else:
-                                st.error(f"No se encontró ninguna pestaña de vehículos. Hojas disponibles: {nombres_hojas}")
+                                st.warning(f"No se encontró la patente '{patente_asignada}' en la base de datos de vehículos.")
                                 
                         st.success("¡Cierre de viaje registrado y odómetros actualizados con éxito!")
                         
                     except Exception as e:
                         st.error(f"Error al procesar el cierre: {e}")
+
         # --- MÓDULO 3: HOJA DE RUTA Y MAPA ---
         elif st.session_state.menu_activo == "Ruta":
             st.subheader("🗺️ Hoja de Ruta Óptima")
