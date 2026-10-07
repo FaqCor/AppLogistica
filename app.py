@@ -386,7 +386,7 @@ else:
                             st.session_state.envio_index = 0
                         st.rerun()
 
-    # --- MÓDULO 2: CIERRE DE VIAJE ---
+   # --- MÓDULO 2: CIERRE DE VIAJE ---
         elif st.session_state.menu_activo == "Cierre":
             st.subheader("⚙️ Cierre de Viaje y Rendición")
             with st.form("form_cierre_mod"):
@@ -411,25 +411,35 @@ else:
                             finalizo_viaje, km_actual, "Sin observaciones", link_foto
                         ], value_input_option='USER_ENTERED')
 
-                        # 2. Actualización automática adaptada a la nueva estructura de columnas
+                        # 2. Actualización robusta de la base de vehículos leyendo la columna B
                         actualizado_vehiculos = False
                         try:
                             ws_vehiculos = sheet.worksheet("Base de datos VEHICULOS")
                             if patente_asignada and patente_asignada != "Sin Asignar" and km_actual > 0:
-                                celda_patente = ws_vehiculos.find(patente_asignada)
-                                if celda_patente:
-                                    fila_vehiculo = celda_patente.row
-                                    
+                                # Obtenemos todos los valores de la columna B (Patentes)
+                                lista_patentes = ws_vehiculos.col_values(2)
+                                
+                                fila_encontrada = None
+                                # Buscamos la fila comparando sin espacios ni mayúsculas
+                                patente_buscada = patente_asignada.strip().upper()
+                                for idx, pat in enumerate(lista_patentes):
+                                    if pat.strip().upper() == patente_buscada:
+                                        fila_encontrada = idx + 1 # Las listas de python arrancan en 0, las filas de sheets en 1
+                                        break
+                                
+                                if fila_encontrada:
                                     # Columna E (5) es Odómetro actual, Columna F (6) es Odómetro anterior
-                                    km_viejo_col_e = ws_vehiculos.cell(fila_vehiculo, 5).value
+                                    km_viejo_col_e = ws_vehiculos.cell(fila_encontrada, 5).value
                                     
                                     if km_viejo_col_e:
-                                        ws_vehiculos.update_cell(fila_vehiculo, 6, km_viejo_col_e) # Pasa a F
+                                        ws_vehiculos.update_cell(fila_encontrada, 6, km_viejo_col_e) # Pasa a F
                                     
-                                    ws_vehiculos.update_cell(fila_vehiculo, 5, km_actual) # Nuevo en E
-                                    ws_vehiculos.update_cell(fila_vehiculo, 7, datetime.now().strftime("%d/%m/%Y")) # Actualiza fecha en G
+                                    ws_vehiculos.update_cell(fila_encontrada, 5, km_actual) # Nuevo en E
+                                    ws_vehiculos.update_cell(fila_encontrada, 7, datetime.now().strftime("%d/%m/%Y")) # Fecha en G
                                     
                                     actualizado_vehiculos = True
+                                else:
+                                    st.warning(f"No se encontró la patente '{patente_asignada}' en la columna B de la base de vehículos.")
                         except Exception as e_veh:
                             st.warning(f"Nota sobre vehículos: {e_veh}")
 
