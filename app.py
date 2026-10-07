@@ -386,7 +386,7 @@ else:
                             st.session_state.envio_index = 0
                         st.rerun()
 
-        # --- MÓDULO 2: CIERRE DE VIAJE (ACTUALIZADO CON LA PESTAÑA EXACTA) ---
+      # --- MÓDULO 2: CIERRE DE VIAJE ---
         elif st.session_state.menu_activo == "Cierre":
             st.subheader("⚙️ Cierre de Viaje y Rendición")
             with st.form("form_cierre_mod"):
@@ -411,29 +411,25 @@ else:
                             finalizo_viaje, km_actual, "Sin observaciones", link_foto
                         ], value_input_option='USER_ENTERED')
 
-                        # 2. Actualizar automáticamente la pestaña "Base de datos VEHICULOS"
-                        if patente_asignada and patente_asignada != "Sin Asignar" and km_actual > 0:
+                        # 2. Actualización segura de la pestaña de vehículos
+                        actualizado_vehiculos = False
+                        try:
                             ws_vehiculos = sheet.worksheet("Base de datos VEHICULOS")
-                            
-                            # Buscamos la patente exacta en la Columna B
-                            celda_patente = ws_vehiculos.find(patente_asignada)
-                            
-                            if celda_patente:
-                                fila_vehiculo = celda_patente.row
-                                
-                                # Leemos el valor actual de la Columna D (Odómetro actual - columna 4)
-                                km_viejo_col_d = ws_vehiculos.cell(fila_vehiculo, 4).value
-                                
-                                # Movemos el valor viejo a la Columna E (Odómetro anterior - columna 5)
-                                if km_viejo_col_d:
-                                    ws_vehiculos.update_cell(fila_vehiculo, 5, km_viejo_col_d)
-                                
-                                # Escribimos el nuevo kilometraje en la Columna D (Odómetro actual - columna 4)
-                                ws_vehiculos.update_cell(fila_vehiculo, 4, km_actual)
-                            else:
-                                st.warning(f"No se encontró la patente '{patente_asignada}' en la base de datos de vehículos.")
-                                
-                        st.success("¡Cierre de viaje registrado y odómetros actualizados con éxito!")
+                            if patente_asignada and patente_asignada != "Sin Asignar" and km_actual > 0:
+                                celda_patente = ws_vehiculos.find(patente_asignada)
+                                if celda_patente:
+                                    fila_vehiculo = celda_patente.row
+                                    km_viejo_col_d = ws_vehiculos.cell(fila_vehiculo, 4).value
+                                    if km_viejo_col_d:
+                                        ws_vehiculos.update_cell(fila_vehiculo, 5, km_viejo_col_d)
+                                    ws_vehiculos.update_cell(fila_vehiculo, 4, km_actual)
+                                    actualizado_vehiculos = True
+                        except Exception as e_veh:
+                            st.warning(f"Nota sobre vehículos: {e_veh}")
+
+                        st.success("¡Cierre de viaje registrado con éxito!")
+                        if actualizado_vehiculos:
+                            st.success("¡Odómetro actualizado correctamente en la base de vehículos!")
                         
                     except Exception as e:
                         st.error(f"Error al procesar el cierre: {e}")
