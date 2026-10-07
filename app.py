@@ -386,7 +386,7 @@ else:
                             st.session_state.envio_index = 0
                         st.rerun()
 
-  # --- MÓDULO 2: CIERRE DE VIAJE ---
+ # --- MÓDULO 2: CIERRE DE VIAJE ---
         elif st.session_state.menu_activo == "Cierre":
             st.subheader("⚙️ Cierre de Viaje y Rendición")
             with st.form("form_cierre_mod"):
@@ -411,7 +411,10 @@ else:
                             finalizo_viaje, km_actual, "Sin observaciones", link_foto
                         ], value_input_option='USER_ENTERED')
 
-                        # 2. Actualización usando exclusivamente D (Actual) y F (Anterior)
+                        # Variable para almacenar el km anterior que estaba en la base de vehículos
+                        km_anterior_capturado = None
+
+                        # 2. Actualización en la pestaña Base de datos VEHICULOS (D = Actual, F = Anterior)
                         actualizado_vehiculos = False
                         try:
                             ws_vehiculos = None
@@ -432,29 +435,56 @@ else:
                                         break
                                 
                                 if fila_encontrada:
-                                    # 1. Leemos el valor que está actualmente en la Columna D (Odómetro actual - columna 4)
+                                    # Leemos el valor que está en la Columna D (Odómetro actual)
                                     km_actual_viejo = ws_vehiculos.cell(fila_encontrada, 4).value
                                     
-                                    # 2. Movemos ese valor viejo directamente a la Columna F (Odómetro anterior - columna 6)
                                     if km_actual_viejo:
+                                        km_anterior_capturado = km_actual_viejo
+                                        # Movemos ese valor viejo a la Columna F (Odómetro anterior en vehículos)
                                         ws_vehiculos.update_cell(fila_encontrada, 6, km_actual_viejo)
                                     
-                                    # 3. Colocamos el nuevo kilometraje del chofer en la Columna D (Odómetro actual - columna 4)
+                                    # Colocamos el nuevo kilometraje del chofer en la Columna D (Odómetro actual)
                                     ws_vehiculos.update_cell(fila_encontrada, 4, km_actual)
-                                    
-                                    # Nota: La columna E queda completamente ignorada y sin modificaciones.
                                     
                                     actualizado_vehiculos = True
                                 else:
                                     st.warning(f"No se encontró la patente '{patente_asignada}' en la columna B.")
-                            else:
-                                st.warning("No se pudo localizar la pestaña de vehículos en el Google Sheet.")
                         except Exception as e_veh:
                             st.warning(f"Nota sobre vehículos: {e_veh}")
 
+                        # 3. Guardar el odómetro en la columna correspondiente de la pestaña "Odometro" hacia abajo
+                        try:
+                            ws_odometro = sheet.worksheet("Odometro")
+                            
+                            # Buscamos en qué columna está el dominio (asumiendo que los dominios están en la fila 1 o 2)
+                            # Leemos la fila 1 o 2 completa para ubicar la patente
+                            fila_cabecera = ws_odometro.row_values(2) # Ajusta a row_values(1) si tus dominios están en la fila 1
+                            
+                            columna_patente = None
+                            patente_buscada = patente_asignada.strip().upper()
+                            
+                            for c_idx, val in enumerate(fila_cabecera):
+                                if val.strip().upper() == patente_buscada:
+                                    columna_patente = c_idx + 1 # Las columnas en gspread empiezan en 1
+                                    break
+                            
+                            if columna_patente and km_anterior_capturado:
+                                # Obtenemos todos los valores de esa columna para encontrar la primera celda vacía hacia abajo
+                                valores_columna = ws_odometro.col_values(columna_patente)
+                                
+                                # La primera fila disponible será el total de elementos + 1 (siempre que respete la cabecera)
+                                siguiente_fila = len(valores_columna) + 1
+                                if siguiente_fila < 3: # Asegurarnos de no pisar las cabeceras (fila 1 o 2)
+                                    siguiente_fila = 3
+                                
+                                # Guardamos el valor en esa celda exacta (columna del vehículo, siguiente fila libre)
+                                ws_odometro.update_cell(siguiente_fila, columna_patente, km_anterior_capturado)
+                        except Exception as e_odo:
+                            st.warning(f"Nota en pestaña Odometro: {e_odo}")
+
                         st.success("¡Cierre de viaje registrado con éxito!")
                         if actualizado_vehiculos:
-                            st.success("¡El odómetro actual pasó a ser el anterior y se guardó el nuevo valor correctamente!")
+                            st.success("¡Odómetro anterior registrado en la pestaña histórica por vehículo correctamente!")
                         
                     except Exception as e:
                         st.error(f"Error al procesar el cierre: {e}")
