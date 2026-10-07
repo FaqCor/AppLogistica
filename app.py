@@ -6,6 +6,7 @@ from PIL import Image
 import io
 import folium
 from streamlit_folium import st_folium
+import pandas as pd
 
 # --- 1. CONFIGURACIÓN DE LA PÁGINA ---
 st.set_page_config(page_title="Choferes - Logística", page_icon="🚚", layout="centered")
@@ -162,7 +163,7 @@ def obtener_asignaciones_chofer(chofer):
         st.error(f"Error al leer la solapa Asignación: {e}")
     return patente_asignada, envios_lista
 
-# --- 6. AUTENTICACIÓN ---
+# --- 6. AUTENTICACIÓN Y PANEL DE LOGÍSTICA ---
 st.markdown("<h1 style='text-align: center; margin-bottom: 5px;'>🚚 DM MAESTRO S.R.L. </h1>", unsafe_allow_html=True)
 st.markdown("<p style='text-align: center; color: #94a3b8; margin-bottom: 25px;'>Sistema de Flota y Logística</p>", unsafe_allow_html=True)
 
@@ -171,15 +172,50 @@ params = st.query_params
 chofer_en_url = params.get("chofer", None)
 es_encargado = params.get("admin", None) == "logadmin2026"
 
+# -------------------------------------------------------------
+# PANEL EXCLUSIVO PARA EL ENCARGADO DE LOGÍSTICA
+# -------------------------------------------------------------
 if es_encargado:
-    with st.sidebar:
-        st.header("Panel de Logística")
-        chofer_sel_admin = st.selectbox("Crear enlace para chofer:", choferes_lista)
-        link_wpp = f"applogistica-zcpbhxepee55agsgxq6rwd.streamlit.app/?chofer={chofer_sel_admin.replace(' ', '%20')}"
-        st.code(link_wpp, language="markdown")
-else:
-    st.markdown("""<style>[data-testid="stSidebar"] { display: none; }</style>""", unsafe_allow_html=True)
+    st.markdown("---")
+    st.subheader("🛠️ Panel de Verificación y Control de Flota (Logística)")
+    st.markdown("Revise los datos de la base de vehículos, corrija cualquier error de carga y actualice los kilómetros. Al guardar, el sistema pasará automáticamente el valor actual al **Odómetro anterior** (Columna E) y guardará el nuevo valor en el **Odómetro actual** (Columna D).")
 
+    try:
+        ws_vehiculos = sheet.worksheet("Base de datos VEHICULOS")
+        data_vehiculos = ws_vehiculos.get_all_records()
+        df_vehiculos = pd.DataFrame(data_vehiculos)
+
+        # Usamos el data_editor para permitir correcciones manuales
+        df_editado = st.data_editor(df_vehiculos, num_rows="fixed", use_container_width=True, key="editor_logistica_admin")
+
+        if st.button("💾 Guardar Cambios y Actualizar Odómetros"):
+            actualizaciones = 0
+            for index, row in df_editado.iterrows():
+                fila_excel = index + 4  # Ajustado a tu estructura de Google Sheets donde los datos arrancan en la fila 4
+                
+                # Leer el valor actual físico en la celda D (columna 4)
+                km_actual_en_sheet = ws_vehiculos.cell(fila_excel, 4).value
+                km_nuevo_modificado = row["Odómetro actual (km/horas)"]
+                
+                # Si el encargado modificó o validó un nuevo número
+                if str(km_nuevo_modificado) != str(km_actual_en_sheet) and km_nuevo_modificado != "":
+                    # 1. Pasamos el valor actual viejo a la columna E (Odómetro anterior - columna 5)
+                    ws_vehiculos.update_cell(fila_excel, 5, km_actual_en_sheet)
+                    # 2. Guardamos el nuevo valor verificado en la columna D (Odómetro actual - columna 4)
+                    ws_vehiculos.update_cell(fila_excel, 4, km_nuevo_modificado)
+                    actualizaciones += 1
+
+            st.success(f"¡Se actualizaron y desplazaron correctamente {actualizaciones} registros en la flota!")
+            st.rerun()
+
+    except Exception as e:
+        st.error(f"Error al cargar el panel de logística: {e}")
+
+    st.stop()  # Detenemos la ejecución para que el encargado solo vea su panel de control
+
+# -------------------------------------------------------------
+# VISTA NORMAL DE CHOFERES
+# -------------------------------------------------------------
 chofer_actual = chofer_en_url if chofer_en_url else st.selectbox("Seleccione su Nombre y Apellido:", choferes_lista)
 
 if "autenticado" not in st.session_state:
