@@ -411,7 +411,7 @@ else:
                             finalizo_viaje, km_actual, "Sin observaciones", link_foto
                         ], value_input_option='USER_ENTERED')
 
-                        # 2. Actualización exacta de odómetros y fecha
+                        # 2. Actualización usando exclusivamente D (Actual) y F (Anterior)
                         actualizado_vehiculos = False
                         try:
                             ws_vehiculos = None
@@ -422,7 +422,7 @@ else:
                                     break
                             
                             if ws_vehiculos and patente_asignada and patente_asignada != "Sin Asignar" and km_actual > 0:
-                                lista_patentes = ws_vehiculos.col_values(2) # Columna B
+                                lista_patentes = ws_vehiculos.col_values(2) # Columna B (Patente)
                                 
                                 fila_encontrada = None
                                 patente_buscada = patente_asignada.strip().upper()
@@ -432,18 +432,17 @@ else:
                                         break
                                 
                                 if fila_encontrada:
-                                    # 1. Leemos el número que estaba en la Columna E (Odómetro actual - columna 5)
-                                    km_actual_viejo = ws_vehiculos.cell(fila_encontrada, 5).value
+                                    # 1. Leemos el valor que está actualmente en la Columna D (Odómetro actual - columna 4)
+                                    km_actual_viejo = ws_vehiculos.cell(fila_encontrada, 4).value
                                     
-                                    # 2. Movemos ese número viejo a la Columna G (Odómetro anterior - columna 7)
+                                    # 2. Movemos ese valor viejo directamente a la Columna F (Odómetro anterior - columna 6)
                                     if km_actual_viejo:
-                                        ws_vehiculos.update_cell(fila_encontrada, 7, km_actual_viejo)
+                                        ws_vehiculos.update_cell(fila_encontrada, 6, km_actual_viejo)
                                     
-                                    # 3. Colocamos el nuevo kilometraje del chofer en la Columna E (Odómetro actual - columna 5)
-                                    ws_vehiculos.update_cell(fila_encontrada, 5, km_actual)
+                                    # 3. Colocamos el nuevo kilometraje del chofer en la Columna D (Odómetro actual - columna 4)
+                                    ws_vehiculos.update_cell(fila_encontrada, 4, km_actual)
                                     
-                                    # 4. Ponemos la fecha de hoy únicamente en la Columna F (Última actualización - columna 6)
-                                    ws_vehiculos.update_cell(fila_encontrada, 6, datetime.now().strftime("%d/%m/%Y"))
+                                    # Nota: La columna E queda completamente ignorada y sin modificaciones.
                                     
                                     actualizado_vehiculos = True
                                 else:
@@ -455,7 +454,7 @@ else:
 
                         st.success("¡Cierre de viaje registrado con éxito!")
                         if actualizado_vehiculos:
-                            st.success("¡Odómetros y fechas actualizados correctamente en la base de vehículos!")
+                            st.success("¡El odómetro actual pasó a ser el anterior y se guardó el nuevo valor correctamente!")
                         
                     except Exception as e:
                         st.error(f"Error al procesar el cierre: {e}")
