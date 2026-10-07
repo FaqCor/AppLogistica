@@ -391,6 +391,7 @@ else:
                             st.session_state.envio_index = 0
                         st.rerun()
        # --- MÓDULO 2: CIERRE DE VIAJE ---
+       # --- MÓDULO 2: CIERRE DE VIAJE ---
         elif st.session_state.menu_activo == "Cierre":
             st.subheader("⚙️ Cierre de Viaje y Rendición")
             with st.form("form_cierre_mod"):
@@ -415,31 +416,45 @@ else:
                             finalizo_viaje, km_actual, "Sin observaciones", link_foto
                         ], value_input_option='USER_ENTERED')
 
-                        # 2. Actualizar automáticamente la Base de datos de Vehículos (Columnas D y E)
+                        # 2. Actualizar automáticamente la Base de datos de Vehículos
                         if patente_asignada and patente_asignada != "Sin Asignar" and km_actual > 0:
-                            ws_vehiculos = sheet.worksheet("Base de datos VEHICULOS")
+                            # Verificamos las pestañas disponibles en el archivo para evitar errores de nombre exacto
+                            nombres_hojas = [ws.title for ws in sheet.worksheets()]
                             
-                            # Buscamos en qué fila está la patente (Columna B = columna 2)
-                            celda_patente = ws_vehiculos.find(patente_asignada)
+                            # Buscamos de forma flexible la pestaña de vehículos
+                            nombre_encontrado = None
+                            for nombre in nombres_hojas:
+                                if "vehiculo" in nombre.lower() or "base de datos" in nombre.lower():
+                                    nombre_encontrado = nombre
+                                    break
                             
-                            if celda_patente:
-                                fila_vehiculo = celda_patente.row
+                            if nombre_encontrado:
+                                ws_vehiculos = sheet.worksheet(nombre_encontrado)
                                 
-                                # Leemos lo que hay actualmente en la Columna D (Odómetro actual - columna 4)
-                                km_viejo_col_d = ws_vehiculos.cell(fila_vehiculo, 4).value
+                                # Buscamos la patente (Columna B)
+                                celda_patente = ws_vehiculos.find(patente_asignada)
                                 
-                                # Movemos el valor viejo a la Columna E (Odómetro anterior - columna 5)
-                                if km_viejo_col_d:
-                                    ws_vehiculos.update_cell(fila_vehiculo, 5, km_viejo_col_d)
-                                
-                                # Escribimos el nuevo kilometraje en la Columna D (Odómetro actual - columna 4)
-                                ws_vehiculos.update_cell(fila_vehiculo, 4, km_actual)
+                                if celda_patente:
+                                    fila_vehiculo = celda_patente.row
+                                    
+                                    # Leemos lo que hay actualmente en la Columna D (Odómetro actual - columna 4)
+                                    km_viejo_col_d = ws_vehiculos.cell(fila_vehiculo, 4).value
+                                    
+                                    # Movemos el valor viejo a la Columna E (Odómetro anterior - columna 5)
+                                    if km_viejo_col_d:
+                                        ws_vehiculos.update_cell(fila_vehiculo, 5, km_viejo_col_d)
+                                    
+                                    # Escribimos el nuevo kilometraje en la Columna D (Odómetro actual - columna 4)
+                                    ws_vehiculos.update_cell(fila_vehiculo, 4, km_actual)
+                                else:
+                                    st.warning(f"No se encontró la patente '{patente_asignada}' en la pestaña '{nombre_encontrado}'.")
+                            else:
+                                st.error(f"No se encontró ninguna pestaña de vehículos. Hojas disponibles: {nombres_hojas}")
                                 
                         st.success("¡Cierre de viaje registrado y odómetros actualizados con éxito!")
                         
                     except Exception as e:
                         st.error(f"Error al procesar el cierre: {e}")
-
         # --- MÓDULO 3: HOJA DE RUTA Y MAPA ---
         elif st.session_state.menu_activo == "Ruta":
             st.subheader("🗺️ Hoja de Ruta Óptima")
