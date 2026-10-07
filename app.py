@@ -386,7 +386,7 @@ else:
                             st.session_state.envio_index = 0
                         st.rerun()
 
-      # --- MÓDULO 2: CIERRE DE VIAJE ---
+    # --- MÓDULO 2: CIERRE DE VIAJE ---
         elif st.session_state.menu_activo == "Cierre":
             st.subheader("⚙️ Cierre de Viaje y Rendición")
             with st.form("form_cierre_mod"):
@@ -411,7 +411,7 @@ else:
                             finalizo_viaje, km_actual, "Sin observaciones", link_foto
                         ], value_input_option='USER_ENTERED')
 
-                        # 2. Actualización segura de la pestaña de vehículos
+                        # 2. Actualización automática adaptada a la nueva estructura de columnas
                         actualizado_vehiculos = False
                         try:
                             ws_vehiculos = sheet.worksheet("Base de datos VEHICULOS")
@@ -419,17 +419,23 @@ else:
                                 celda_patente = ws_vehiculos.find(patente_asignada)
                                 if celda_patente:
                                     fila_vehiculo = celda_patente.row
-                                    km_viejo_col_d = ws_vehiculos.cell(fila_vehiculo, 4).value
-                                    if km_viejo_col_d:
-                                        ws_vehiculos.update_cell(fila_vehiculo, 5, km_viejo_col_d)
-                                    ws_vehiculos.update_cell(fila_vehiculo, 4, km_actual)
+                                    
+                                    # Columna E (5) es Odómetro actual, Columna F (6) es Odómetro anterior
+                                    km_viejo_col_e = ws_vehiculos.cell(fila_vehiculo, 5).value
+                                    
+                                    if km_viejo_col_e:
+                                        ws_vehiculos.update_cell(fila_vehiculo, 6, km_viejo_col_e) # Pasa a F
+                                    
+                                    ws_vehiculos.update_cell(fila_vehiculo, 5, km_actual) # Nuevo en E
+                                    ws_vehiculos.update_cell(fila_vehiculo, 7, datetime.now().strftime("%d/%m/%Y")) # Actualiza fecha en G
+                                    
                                     actualizado_vehiculos = True
                         except Exception as e_veh:
                             st.warning(f"Nota sobre vehículos: {e_veh}")
 
                         st.success("¡Cierre de viaje registrado con éxito!")
                         if actualizado_vehiculos:
-                            st.success("¡Odómetro actualizado correctamente en la base de vehículos!")
+                            st.success("¡Odómetro actualizado y desplazado correctamente en la base de vehículos!")
                         
                     except Exception as e:
                         st.error(f"Error al procesar el cierre: {e}")
