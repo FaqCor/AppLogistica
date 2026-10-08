@@ -19,6 +19,7 @@ st.markdown("""
         color: #f3f4f6;
         font-family: 'Segoe UI', Roboto, sans-serif;
     }
+    /* Tarjetas de módulos modernos */
     .menu-card {
         background: linear-gradient(145deg, #1e293b 0%, #0f172a 100%);
         border: 1px solid rgba(255, 255, 255, 0.08);
@@ -113,6 +114,13 @@ COORDS_DESTINOS = {
     "formosa": (-26.1853, -58.1758)
 }
 
+ORDEN_CORREDOR = {
+    "salta": 1, "jujuy": 2, "san salvador de jujuy": 2,
+    "tucuman": 3, "san miguel de tucuman": 3, "catamarca": 4,
+    "santiago del estero": 5, "la rioja": 6, "chaco": 7,
+    "resistencia": 7, "corrientes": 8, "formosa": 9
+}
+
 def obtener_coordenada(destino_str):
     dest_clean = destino_str.strip().lower()
     for key, coords in COORDS_DESTINOS.items():
@@ -120,23 +128,12 @@ def obtener_coordenada(destino_str):
             return coords
     return (-24.7821, -65.4232)
 
-def obtener_km_actual_vehiculo(patente):
-    """Busca en Base de datos VEHICULOS (Columna B patente, Columna D km actual)"""
-    try:
-        ws_veh = sheet.worksheet("Base de datos VEHICULOS")
-        patentes = ws_veh.col_values(2) # Columna B
-        kms = ws_veh.col_values(4)      # Columna D (Odómetro actual)
-        
-        patente_clean = patente.strip().upper()
-        for idx, pat in enumerate(patentes):
-            if pat.strip().upper() == patente_clean:
-                if idx < len(kms):
-                    val_km = str(kms[idx]).replace(".", "").replace(",", "").strip()
-                    if val_km.isdigit():
-                        return int(val_km)
-    except Exception:
-        pass
-    return 0
+def obtener_peso_destino(destino_str):
+    dest_clean = destino_str.strip().lower()
+    for key, peso in ORDEN_CORREDOR.items():
+        if key in dest_clean:
+            return peso
+    return 99
 
 def obtener_asignaciones_chofer(chofer):
     envios_lista = []
@@ -175,19 +172,26 @@ params = st.query_params
 chofer_en_url = params.get("chofer", None)
 es_encargado = params.get("admin", None) == "logadmin2026"
 
+# -------------------------------------------------------------
+# PANEL EXCLUSIVO PARA EL ENCARGADO DE LOGÍSTICA
+# -------------------------------------------------------------
 if es_encargado:
     st.markdown("---")
     st.subheader("🛠️ Panel de Verificación y Control de Flota (Logística)")
+    st.markdown("Revise los datos de la base de vehículos, corrija cualquier error de carga y actualice los kilómetros. Al guardar, el sistema pasará automáticamente el valor actual al **Odómetro anterior** (Columna E) y guardará el nuevo valor en el **Odómetro actual** (Columna D).")
+
     try:
         ws_vehiculos = sheet.worksheet("Base de datos VEHICULOS")
         data_vehiculos = ws_vehiculos.get_all_records()
         df_vehiculos = pd.DataFrame(data_vehiculos)
+
         df_editado = st.data_editor(df_vehiculos, num_rows="fixed", use_container_width=True, key="editor_logistica_admin")
 
         if st.button("💾 Guardar Cambios y Actualizar Odómetros"):
             actualizaciones = 0
             for index, row in df_editado.iterrows():
-                fila_excel = index + 4
+                fila_excel = index + 4  # Ajustado a tu estructura donde los datos arrancan en la fila 4
+                
                 km_actual_en_sheet = ws_vehiculos.cell(fila_excel, 4).value
                 km_nuevo_modificado = row["Odómetro actual (km/horas)"]
                 
@@ -195,12 +199,18 @@ if es_encargado:
                     ws_vehiculos.update_cell(fila_excel, 5, km_actual_en_sheet)
                     ws_vehiculos.update_cell(fila_excel, 4, km_nuevo_modificado)
                     actualizaciones += 1
-            st.success(f"¡Se actualizaron {actualizaciones} registros!")
+
+            st.success(f"¡Se actualizaron y desplazaron correctamente {actualizaciones} registros en la flota!")
             st.rerun()
+
     except Exception as e:
-        st.error(f"Error: {e}")
+        st.error(f"Error al cargar el panel de logística: {e}")
+
     st.stop()
 
+# -------------------------------------------------------------
+# VISTA NORMAL DE CHOFERES
+# -------------------------------------------------------------
 chofer_actual = chofer_en_url if chofer_en_url else st.selectbox("Seleccione su Nombre y Apellido:", choferes_lista)
 
 if "autenticado" not in st.session_state:
@@ -230,6 +240,7 @@ if not st.session_state.autenticado:
                 st.error("❌ PIN incorrecto.")
     st.stop()
 
+# Barra superior de sesión
 col_ses1, col_ses2 = st.columns([3, 1])
 with col_ses1:
     st.success(f"🔓 Chofer activo: **{chofer_actual}**")
@@ -242,26 +253,26 @@ with col_ses2:
         st.rerun()
 
 patente_asignada, envios_disponibles = obtener_asignaciones_chofer(chofer_actual)
-km_inicial_sugerido = obtener_km_actual_vehiculo(patente_asignada)
 
 if "envio_index" not in st.session_state:
     st.session_state.envio_index = 0
 
-# --- 7. CONTROL DE FLUJO Y CHECKLIST OBLIGATORIO ---
+# --- 7. CONTROL DE FLUJO Y PANTALLA PRINCIPAL ---
+
 if not st.session_state.checklist_realizado:
-    st.warning("⚠️ **CHECKLIST OBLIGATORIO:** Para habilitar la salida del camión, verifique las condiciones.")
-    st.markdown("<div class='orion-card'><h3>📋 Checklist Pre-operacional</h3></div>", unsafe_allow_html=True)
+    st.warning("⚠️ **CHECKLIST OBLIGATORIO:** Para habilitar la salida del camión y desbloquear el menú principal, debe completar la inspección.")
+    
+    st.markdown("<div class='orion-card'><h3>📋 1. Checklist Pre-operacional</h3><p style='color:#94a3b8;'>Verificación obligatoria de la unidad asignada.</p></div>", unsafe_allow_html=True)
     
     with st.form("form_checklist_obligatorio"):
         col1, col2 = st.columns(2)
         with col1:
             st.text_input("Chofer", value=chofer_actual, disabled=True)
-            st.text_input("Patente Asignada", value=patente_asignada, disabled=True)
+            patente_in = st.text_input("Patente / Dominio Asignado (Bloqueado)", value=patente_asignada, disabled=True)
             neumaticos = st.checkbox("Presión y estado de neumáticos")
             luces = st.checkbox("Luces altas, bajas y guiños")
         with col2:
-            # Kilometraje extraído automáticamente de la Base de Vehículos (Columna D)
-            kilometraje = st.number_input("Kilometraje Actual de Salida (Km)", value=km_inicial_sugerido, min_value=0, step=100)
+            kilometraje = st.number_input("Kilometraje Actual (Km)", min_value=0, step=100)
             frenos = st.checkbox("Liquido de Freno")
             fluidos = st.checkbox("Niveles de agua y aceite")
             documentacion = st.checkbox("Documentación y seguros vigentes")
@@ -276,41 +287,51 @@ if not st.session_state.checklist_realizado:
                 
                 ws_check.append_row([datetime.now().strftime("%Y-%m-%d %H:%M"), chofer_actual, patente_asignada, kilometraje, "Aprobado"])
                 st.session_state.checklist_realizado = True
-                st.success("✅ ¡Checklist aprobado con éxito!")
+                st.success("✅ ¡Checklist aprobado con éxito! Desbloqueando menú principal...")
                 st.rerun()
             else:
-                st.error("❌ Debe tildar todos los puntos de control obligatorios.")
+                st.error("❌ Debe tildar todos los puntos de control obligatorios para salir.")
+
 else:
     # --- MENÚ TÁCTIL PRINCIPAL ---
     if st.session_state.menu_activo == "Home":
         st.markdown("### 🎛️ Panel de Operaciones")
+        st.markdown("Seleccione el módulo en el que desea trabajar:")
+        
         c1, c2, c3 = st.columns(3)
         with c1:
+            st.markdown("<div class='menu-card'><h3>⛽</h3><h4>Viáticos</h4><p style='font-size:12px; color:#94a3b8;'>Gastos y rendiciones</p></div>", unsafe_allow_html=True)
             if st.button("Abrir Viáticos"):
                 st.session_state.menu_activo = "Viáticos"
                 st.rerun()
         with c2:
+            st.markdown("<div class='menu-card'><h3>🛠️</h3><h4>Mecánica</h4><p style='font-size:12px; color:#94a3b8;'>Estado técnico unidad</p></div>", unsafe_allow_html=True)
             if st.button("Abrir Mecánica"):
                 st.session_state.menu_activo = "Mecánica"
                 st.rerun()
         with c3:
+            st.markdown("<div class='menu-card'><h3>⚙</h3><h4>Cierre de Viaje</h4><p style='font-size:12px; color:#94a3b8;'>Odómetro y cierre</p></div>", unsafe_allow_html=True)
             if st.button("Abrir Cierre"):
                 st.session_state.menu_activo = "Cierre"
                 st.rerun()
 
         c4, c5, c6 = st.columns(3)
         with c4:
+            st.markdown("<div class='menu-card'><h3>🧳</h3><h4>Entregas</h4><p style='font-size:12px; color:#94a3b8;'>Remitos y cobros</p></div>", unsafe_allow_html=True)
             if st.button("Abrir Entregas"):
                 st.session_state.menu_activo = "Entregas"
                 st.rerun()
         with c5:
+            st.markdown("<div class='menu-card'><h3>🚦</h3><h4>Incidentes</h4><p style='font-size:12px; color:#94a3b8;'>Reportar novedades</p></div>", unsafe_allow_html=True)
             if st.button("Abrir Incidentes"):
                 st.session_state.menu_activo = "Incidentes"
                 st.rerun()
         with c6:
+            st.markdown("<div class='menu-card'><h3>🗺️</h3><h4>Hoja de Ruta</h4><p style='font-size:12px; color:#94a3b8;'>Mapa y corredores</p></div>", unsafe_allow_html=True)
             if st.button("Abrir Ruta"):
                 st.session_state.menu_activo = "Ruta"
                 st.rerun()
+
     else:
         if st.button("⬅️ VOLVER AL MENÚ PRINCIPAL"):
             st.session_state.menu_activo = "Home"
@@ -365,7 +386,7 @@ else:
                             st.session_state.envio_index = 0
                         st.rerun()
 
-        # --- MÓDULO 2: CIERRE DE VIAJE ---
+ # --- MÓDULO 2: CIERRE DE VIAJE ---
         elif st.session_state.menu_activo == "Cierre":
             st.subheader("⚙️ Cierre de Viaje y Rendición")
             with st.form("form_cierre_mod"):
@@ -378,43 +399,7 @@ else:
                 if st.form_submit_button("FINALIZAR Y ENVIAR CIERRE"):
                     link_foto = "Sin foto"
                     try:
-                        # 1. Validación previa del Kilometraje consultando la Base de Vehículos
-                        km_anterior_capturado = None
-                        actualizado_vehiculos = False
-                        
-                        ws_vehiculos = None
-                        for ws in sheet.worksheets():
-                            titulo_lower = ws.title.lower()
-                            if "vehiculo" in titulo_lower or "vehículo" in titulo_lower:
-                                ws_vehiculos = ws
-                                break
-                        
-                        if ws_vehiculos and patente_asignada and patente_asignada != "Sin Asignar":
-                            lista_patentes = ws_vehiculos.col_values(2) # Columna B (Patente)
-                            fila_encontrada = None
-                            patente_buscada = patente_asignada.strip().upper()
-                            
-                            for idx, pat in enumerate(lista_patentes):
-                                if pat.strip().upper() == patente_buscada:
-                                    fila_encontrada = idx + 1
-                                    break
-                            
-                            if fila_encontrada:
-                                km_actual_viejo = ws_vehiculos.cell(fila_encontrada, 4).value
-                                km_anterior_capturado = float(km_actual_viejo) if km_actual_viejo else 0.0
-                                
-                                # VALIDACIÓN DE COHERENCIA MATEMÁTICA
-                                if km_actual <= km_anterior_capturado:
-                                    st.error(f"❌ Error: El kilometraje ingresado ({km_actual}) no puede ser menor o igual al registro anterior ({km_anterior_capturado}). Verifique el odómetro.")
-                                    st.stop()
-                            else:
-                                st.warning(f"No se encontró la patente '{patente_asignada}' en la columna B.")
-                                st.stop()
-                        else:
-                            st.warning("No se pudo verificar el vehículo en la base de datos.")
-                            st.stop()
-
-                        # 2. Guardar en la solapa Cierres
+                        # 1. Guardar en la solapa Cierres
                         try:
                             ws_cierres = sheet.worksheet("Cierres")
                         except:
@@ -426,15 +411,53 @@ else:
                             finalizo_viaje, km_actual, "Sin observaciones", link_foto
                         ], value_input_option='USER_ENTERED')
 
-                        # 3. Actualización en la pestaña Base de datos VEHICULOS (D = Actual, F = Anterior)
-                        if km_anterior_capturado is not None:
-                            ws_vehiculos.update_cell(fila_encontrada, 6, km_anterior_capturado)
-                            ws_vehiculos.update_cell(fila_encontrada, 4, km_actual)
-                            actualizado_vehiculos = True
+                        # Variable para almacenar el km anterior que estaba en la base de vehículos
+                        km_anterior_capturado = None
 
-                        # 4. Guardar el odómetro anterior en la columna correspondiente de la pestaña "Odometro" hacia abajo
+                        # 2. Actualización en la pestaña Base de datos VEHICULOS (D = Actual, F = Anterior)
+                        actualizado_vehiculos = False
+                        try:
+                            ws_vehiculos = None
+                            for ws in sheet.worksheets():
+                                titulo_lower = ws.title.lower()
+                                if "vehiculo" in titulo_lower or "vehículo" in titulo_lower:
+                                    ws_vehiculos = ws
+                                    break
+                            
+                            if ws_vehiculos and patente_asignada and patente_asignada != "Sin Asignar" and km_actual > 0:
+                                lista_patentes = ws_vehiculos.col_values(2) # Columna B (Patente)
+                                
+                                fila_encontrada = None
+                                patente_buscada = patente_asignada.strip().upper()
+                                for idx, pat in enumerate(lista_patentes):
+                                    if pat.strip().upper() == patente_buscada:
+                                        fila_encontrada = idx + 1
+                                        break
+                                
+                                if fila_encontrada:
+                                    # Leemos el valor que está en la Columna D (Odómetro actual)
+                                    km_actual_viejo = ws_vehiculos.cell(fila_encontrada, 4).value
+                                    
+                                    if km_actual_viejo:
+                                        km_anterior_capturado = km_actual_viejo
+                                        # Movemos ese valor viejo a la Columna F (Odómetro anterior en vehículos)
+                                        ws_vehiculos.update_cell(fila_encontrada, 6, km_actual_viejo)
+                                    
+                                    # Colocamos el nuevo kilometraje del chofer en la Columna D (Odómetro actual)
+                                    ws_vehiculos.update_cell(fila_encontrada, 4, km_actual)
+                                    
+                                    actualizado_vehiculos = True
+                                else:
+                                    st.warning(f"No se encontró la patente '{patente_asignada}' en la columna B.")
+                        except Exception as e_veh:
+                            st.warning(f"Nota sobre vehículos: {e_veh}")
+
+                        # 3. Guardar el odómetro en la columna correspondiente de la pestaña "Odometro" hacia abajo
                         try:
                             ws_odometro = sheet.worksheet("Odometro")
+                            
+                            # Buscamos en qué columna está el dominio (asumiendo que los dominios están en la fila 1 o 2)
+                            # Leemos la fila 1 o 2 completa para ubicar la patente
                             fila_cabecera = ws_odometro.row_values(2) # Ajusta a row_values(1) si tus dominios están en la fila 1
                             
                             columna_patente = None
@@ -442,15 +465,19 @@ else:
                             
                             for c_idx, val in enumerate(fila_cabecera):
                                 if val.strip().upper() == patente_buscada:
-                                    columna_patente = c_idx + 1
+                                    columna_patente = c_idx + 1 # Las columnas en gspread empiezan en 1
                                     break
                             
                             if columna_patente and km_anterior_capturado:
+                                # Obtenemos todos los valores de esa columna para encontrar la primera celda vacía hacia abajo
                                 valores_columna = ws_odometro.col_values(columna_patente)
+                                
+                                # La primera fila disponible será el total de elementos + 1 (siempre que respete la cabecera)
                                 siguiente_fila = len(valores_columna) + 1
-                                if siguiente_fila < 3:
+                                if siguiente_fila < 3: # Asegurarnos de no pisar las cabeceras (fila 1 o 2)
                                     siguiente_fila = 3
                                 
+                                # Guardamos el valor en esa celda exacta (columna del vehículo, siguiente fila libre)
                                 ws_odometro.update_cell(siguiente_fila, columna_patente, km_anterior_capturado)
                         except Exception as e_odo:
                             st.warning(f"Nota en pestaña Odometro: {e_odo}")
@@ -458,10 +485,9 @@ else:
                         st.success("¡Cierre de viaje registrado con éxito!")
                         if actualizado_vehiculos:
                             st.success("¡Odómetro anterior registrado en la pestaña histórica por vehículo correctamente!")
-                    
+                        
                     except Exception as e:
                         st.error(f"Error al procesar el cierre: {e}")
-
         # --- MÓDULO 3: HOJA DE RUTA Y MAPA ---
         elif st.session_state.menu_activo == "Ruta":
             st.subheader("🗺️ Hoja de Ruta Óptima")
