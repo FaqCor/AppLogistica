@@ -135,6 +135,25 @@ def obtener_peso_destino(destino_str):
             return peso
     return 99
 
+def obtener_km_actual_vehiculo(patente):
+    """Busca en Base de datos VEHICULOS la patente en columna B y extrae el km actual de la columna D"""
+    try:
+        ws_veh = sheet.worksheet("Base de datos VEHICULOS")
+        patentes = ws_veh.col_values(2) # Columna B (Patente)
+        kms = ws_veh.col_values(4)      # Columna D (Odómetro actual)
+        
+        patente_clean = patente.strip().upper()
+        for idx, pat in enumerate(patentes):
+            if pat.strip().upper() == patente_clean:
+                if idx < len(kms):
+                    # Limpiamos los puntos de los miles y espacios (ej: "312.629" -> 312629)
+                    val_str = str(kms[idx]).replace(".", "").replace(",", "").strip()
+                    if val_str.isdigit():
+                        return int(val_str)
+    except Exception as e:
+        print(f"Error al obtener km: {e}")
+    return 0
+
 def obtener_asignaciones_chofer(chofer):
     envios_lista = []
     patente_asignada = "Sin Asignar"
@@ -253,6 +272,7 @@ with col_ses2:
         st.rerun()
 
 patente_asignada, envios_disponibles = obtener_asignaciones_chofer(chofer_actual)
+km_inicial_sugerido = obtener_km_actual_vehiculo(patente_asignada)
 
 if "envio_index" not in st.session_state:
     st.session_state.envio_index = 0
@@ -272,7 +292,8 @@ if not st.session_state.checklist_realizado:
             neumaticos = st.checkbox("Presión y estado de neumáticos")
             luces = st.checkbox("Luces altas, bajas y guiños")
         with col2:
-            kilometraje = st.number_input("Kilometraje Actual (Km)", min_value=0, step=100)
+            # Kilometraje extraído automáticamente y bloqueado para que el chofer no lo edite
+            kilometraje = st.number_input("Kilometraje Actual de Salida (Km)", value=km_inicial_sugerido, disabled=True)
             frenos = st.checkbox("Liquido de Freno")
             fluidos = st.checkbox("Niveles de agua y aceite")
             documentacion = st.checkbox("Documentación y seguros vigentes")
@@ -386,7 +407,7 @@ else:
                             st.session_state.envio_index = 0
                         st.rerun()
 
- # --- MÓDULO 2: CIERRE DE VIAJE ---
+        # --- MÓDULO 2: CIERRE DE VIAJE ---
         elif st.session_state.menu_activo == "Cierre":
             st.subheader("⚙️ Cierre de Viaje y Rendición")
             with st.form("form_cierre_mod"):
@@ -442,7 +463,7 @@ else:
                                         km_anterior_capturado = km_actual_viejo
                                         # Movemos ese valor viejo a la Columna F (Odómetro anterior en vehículos)
                                         ws_vehiculos.update_cell(fila_encontrada, 6, km_actual_viejo)
-                                    
+                                
                                     # Colocamos el nuevo kilometraje del chofer en la Columna D (Odómetro actual)
                                     ws_vehiculos.update_cell(fila_encontrada, 4, km_actual)
                                     
@@ -456,8 +477,7 @@ else:
                         try:
                             ws_odometro = sheet.worksheet("Odometro")
                             
-                            # Buscamos en qué columna está el dominio (asumiendo que los dominios están en la fila 1 o 2)
-                            # Leemos la fila 1 o 2 completa para ubicar la patente
+                            # Buscamos en qué columna está el dominio
                             fila_cabecera = ws_odometro.row_values(2) # Ajusta a row_values(1) si tus dominios están en la fila 1
                             
                             columna_patente = None
@@ -472,12 +492,12 @@ else:
                                 # Obtenemos todos los valores de esa columna para encontrar la primera celda vacía hacia abajo
                                 valores_columna = ws_odometro.col_values(columna_patente)
                                 
-                                # La primera fila disponible será el total de elementos + 1 (siempre que respete la cabecera)
+                                # La primera fila disponible será el total de elementos + 1
                                 siguiente_fila = len(valores_columna) + 1
-                                if siguiente_fila < 3: # Asegurarnos de no pisar las cabeceras (fila 1 o 2)
+                                if siguiente_fila < 3: # Asegurarnos de no pisar las cabeceras
                                     siguiente_fila = 3
                                 
-                                # Guardamos el valor en esa celda exacta (columna del vehículo, siguiente fila libre)
+                                # Guardamos el valor en esa celda exacta
                                 ws_odometro.update_cell(siguiente_fila, columna_patente, km_anterior_capturado)
                         except Exception as e_odo:
                             st.warning(f"Nota en pestaña Odometro: {e_odo}")
@@ -488,6 +508,7 @@ else:
                         
                     except Exception as e:
                         st.error(f"Error al procesar el cierre: {e}")
+
         # --- MÓDULO 3: HOJA DE RUTA Y MAPA ---
         elif st.session_state.menu_activo == "Ruta":
             st.subheader("🗺️ Hoja de Ruta Óptima")
