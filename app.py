@@ -19,7 +19,6 @@ st.markdown("""
         color: #f3f4f6;
         font-family: 'Segoe UI', Roboto, sans-serif;
     }
-    /* Tarjetas de módulos modernos */
     .menu-card {
         background: linear-gradient(145deg, #1e293b 0%, #0f172a 100%);
         border: 1px solid rgba(255, 255, 255, 0.08);
@@ -114,13 +113,6 @@ COORDS_DESTINOS = {
     "formosa": (-26.1853, -58.1758)
 }
 
-ORDEN_CORREDOR = {
-    "salta": 1, "jujuy": 2, "san salvador de jujuy": 2,
-    "tucuman": 3, "san miguel de tucuman": 3, "catamarca": 4,
-    "santiago del estero": 5, "la rioja": 6, "chaco": 7,
-    "resistencia": 7, "corrientes": 8, "formosa": 9
-}
-
 def obtener_coordenada(destino_str):
     dest_clean = destino_str.strip().lower()
     for key, coords in COORDS_DESTINOS.items():
@@ -128,12 +120,23 @@ def obtener_coordenada(destino_str):
             return coords
     return (-24.7821, -65.4232)
 
-def obtener_peso_destino(destino_str):
-    dest_clean = destino_str.strip().lower()
-    for key, peso in ORDEN_CORREDOR.items():
-        if key in dest_clean:
-            return peso
-    return 99
+def obtener_km_actual_vehiculo(patente):
+    """Busca en Base de datos VEHICULOS (Columna B patente, Columna D km actual)"""
+    try:
+        ws_veh = sheet.worksheet("Base de datos VEHICULOS")
+        patentes = ws_veh.col_values(2) # Columna B
+        kms = ws_veh.col_values(4)      # Columna D (Odómetro actual)
+        
+        patente_clean = patente.strip().upper()
+        for idx, pat in enumerate(patentes):
+            if pat.strip().upper() == patente_clean:
+                if idx < len(kms):
+                    val_km = str(kms[idx]).replace(".", "").replace(",", "").strip()
+                    if val_km.isdigit():
+                        return int(val_km)
+    except Exception:
+        pass
+    return 0
 
 def obtener_asignaciones_chofer(chofer):
     envios_lista = []
@@ -172,26 +175,19 @@ params = st.query_params
 chofer_en_url = params.get("chofer", None)
 es_encargado = params.get("admin", None) == "logadmin2026"
 
-# -------------------------------------------------------------
-# PANEL EXCLUSIVO PARA EL ENCARGADO DE LOGÍSTICA
-# -------------------------------------------------------------
 if es_encargado:
     st.markdown("---")
     st.subheader("🛠️ Panel de Verificación y Control de Flota (Logística)")
-    st.markdown("Revise los datos de la base de vehículos, corrija cualquier error de carga y actualice los kilómetros. Al guardar, el sistema pasará automáticamente el valor actual al **Odómetro anterior** (Columna E) y guardará el nuevo valor en el **Odómetro actual** (Columna D).")
-
     try:
         ws_vehiculos = sheet.worksheet("Base de datos VEHICULOS")
         data_vehiculos = ws_vehiculos.get_all_records()
         df_vehiculos = pd.DataFrame(data_vehiculos)
-
         df_editado = st.data_editor(df_vehiculos, num_rows="fixed", use_container_width=True, key="editor_logistica_admin")
 
         if st.button("💾 Guardar Cambios y Actualizar Odómetros"):
             actualizaciones = 0
             for index, row in df_editado.iterrows():
-                fila_excel = index + 4  # Ajustado a tu estructura donde los datos arrancan en la fila 4
-                
+                fila_excel = index + 4
                 km_actual_en_sheet = ws_vehiculos.cell(fila_excel, 4).value
                 km_nuevo_modificado = row["Odómetro actual (km/horas)"]
                 
@@ -199,18 +195,12 @@ if es_encargado:
                     ws_vehiculos.update_cell(fila_excel, 5, km_actual_en_sheet)
                     ws_vehiculos.update_cell(fila_excel, 4, km_nuevo_modificado)
                     actualizaciones += 1
-
-            st.success(f"¡Se actualizaron y desplazaron correctamente {actualizaciones} registros en la flota!")
+            st.success(f"¡Se actualizaron {actualizaciones} registros!")
             st.rerun()
-
     except Exception as e:
-        st.error(f"Error al cargar el panel de logística: {e}")
-
+        st.error(f"Error: {e}")
     st.stop()
 
-# -------------------------------------------------------------
-# VISTA NORMAL DE CHOFERES
-# -------------------------------------------------------------
 chofer_actual = chofer_en_url if chofer_en_url else st.selectbox("Seleccione su Nombre y Apellido:", choferes_lista)
 
 if "autenticado" not in st.session_state:
@@ -240,7 +230,6 @@ if not st.session_state.autenticado:
                 st.error("❌ PIN incorrecto.")
     st.stop()
 
-# Barra superior de sesión
 col_ses1, col_ses2 = st.columns([3, 1])
 with col_ses1:
     st.success(f"🔓 Chofer activo: **{chofer_actual}**")
@@ -253,26 +242,26 @@ with col_ses2:
         st.rerun()
 
 patente_asignada, envios_disponibles = obtener_asignaciones_chofer(chofer_actual)
+km_inicial_sugerido = obtener_km_actual_vehiculo(patente_asignada)
 
 if "envio_index" not in st.session_state:
     st.session_state.envio_index = 0
 
-# --- 7. CONTROL DE FLUJO Y PANTALLA PRINCIPAL ---
-
+# --- 7. CONTROL DE FLUJO Y CHECKLIST OBLIGATORIO ---
 if not st.session_state.checklist_realizado:
-    st.warning("⚠️ **CHECKLIST OBLIGATORIO:** Para habilitar la salida del camión y desbloquear el menú principal, debe completar la inspección.")
-    
-    st.markdown("<div class='orion-card'><h3>📋 1. Checklist Pre-operacional</h3><p style='color:#94a3b8;'>Verificación obligatoria de la unidad asignada.</p></div>", unsafe_allow_html=True)
+    st.warning("⚠️ **CHECKLIST OBLIGATORIO:** Para habilitar la salida del camión, verifique las condiciones.")
+    st.markdown("<div class='orion-card'><h3>📋 Checklist Pre-operacional</h3></div>", unsafe_allow_html=True)
     
     with st.form("form_checklist_obligatorio"):
         col1, col2 = st.columns(2)
         with col1:
             st.text_input("Chofer", value=chofer_actual, disabled=True)
-            patente_in = st.text_input("Patente / Dominio Asignado (Bloqueado)", value=patente_asignada, disabled=True)
+            st.text_input("Patente Asignada", value=patente_asignada, disabled=True)
             neumaticos = st.checkbox("Presión y estado de neumáticos")
             luces = st.checkbox("Luces altas, bajas y guiños")
         with col2:
-            kilometraje = st.number_input("Kilometraje Actual (Km)", min_value=0, step=100)
+            # Kilometraje extraído automáticamente de la Base de Vehículos (Columna D)
+            kilometraje = st.number_input("Kilometraje Actual de Salida (Km)", value=km_inicial_sugerido, min_value=0, step=100)
             frenos = st.checkbox("Liquido de Freno")
             fluidos = st.checkbox("Niveles de agua y aceite")
             documentacion = st.checkbox("Documentación y seguros vigentes")
@@ -287,51 +276,41 @@ if not st.session_state.checklist_realizado:
                 
                 ws_check.append_row([datetime.now().strftime("%Y-%m-%d %H:%M"), chofer_actual, patente_asignada, kilometraje, "Aprobado"])
                 st.session_state.checklist_realizado = True
-                st.success("✅ ¡Checklist aprobado con éxito! Desbloqueando menú principal...")
+                st.success("✅ ¡Checklist aprobado con éxito!")
                 st.rerun()
             else:
-                st.error("❌ Debe tildar todos los puntos de control obligatorios para salir.")
-
+                st.error("❌ Debe tildar todos los puntos de control obligatorios.")
 else:
     # --- MENÚ TÁCTIL PRINCIPAL ---
     if st.session_state.menu_activo == "Home":
         st.markdown("### 🎛️ Panel de Operaciones")
-        st.markdown("Seleccione el módulo en el que desea trabajar:")
-        
         c1, c2, c3 = st.columns(3)
         with c1:
-            st.markdown("<div class='menu-card'><h3>⛽</h3><h4>Viáticos</h4><p style='font-size:12px; color:#94a3b8;'>Gastos y rendiciones</p></div>", unsafe_allow_html=True)
             if st.button("Abrir Viáticos"):
                 st.session_state.menu_activo = "Viáticos"
                 st.rerun()
         with c2:
-            st.markdown("<div class='menu-card'><h3>🛠️</h3><h4>Mecánica</h4><p style='font-size:12px; color:#94a3b8;'>Estado técnico unidad</p></div>", unsafe_allow_html=True)
             if st.button("Abrir Mecánica"):
                 st.session_state.menu_activo = "Mecánica"
                 st.rerun()
         with c3:
-            st.markdown("<div class='menu-card'><h3>⚙</h3><h4>Cierre de Viaje</h4><p style='font-size:12px; color:#94a3b8;'>Odómetro y cierre</p></div>", unsafe_allow_html=True)
             if st.button("Abrir Cierre"):
                 st.session_state.menu_activo = "Cierre"
                 st.rerun()
 
         c4, c5, c6 = st.columns(3)
         with c4:
-            st.markdown("<div class='menu-card'><h3>🧳</h3><h4>Entregas</h4><p style='font-size:12px; color:#94a3b8;'>Remitos y cobros</p></div>", unsafe_allow_html=True)
             if st.button("Abrir Entregas"):
                 st.session_state.menu_activo = "Entregas"
                 st.rerun()
         with c5:
-            st.markdown("<div class='menu-card'><h3>🚦</h3><h4>Incidentes</h4><p style='font-size:12px; color:#94a3b8;'>Reportar novedades</p></div>", unsafe_allow_html=True)
             if st.button("Abrir Incidentes"):
                 st.session_state.menu_activo = "Incidentes"
                 st.rerun()
         with c6:
-            st.markdown("<div class='menu-card'><h3>🗺️</h3><h4>Hoja de Ruta</h4><p style='font-size:12px; color:#94a3b8;'>Mapa y corredores</p></div>", unsafe_allow_html=True)
             if st.button("Abrir Ruta"):
                 st.session_state.menu_activo = "Ruta"
                 st.rerun()
-
     else:
         if st.button("⬅️ VOLVER AL MENÚ PRINCIPAL"):
             st.session_state.menu_activo = "Home"
