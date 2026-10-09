@@ -451,25 +451,31 @@ else:
 
                         km_anterior_capturado = 0
                         
-                        # 2. Actualizar la Base de datos VEHICULOS (Columna D = Actual, Columna F = Anterior)
+                        # 2. Actualizar la Base de datos VEHICULOS usando búsqueda exacta (.find)
                         try:
                             ws_vehiculos = sheet.worksheet("Base de datos VEHICULOS")
-                            lista_patentes = ws_vehiculos.col_values(2) # Columna B (Patente)
-                            
                             patente_buscada = patente_asignada.strip().upper()
-                            for idx, pat in enumerate(lista_patentes):
-                                if pat.strip().upper() == patente_buscada:
-                                    fila_veh = idx + 1
-                                    # Leemos el valor que estaba en el Odómetro actual (Columna D / Col 4)
-                                    val_viejo = ws_vehiculos.cell(fila_veh, 4).value
-                                    if val_viejo:
-                                        km_anterior_capturado = float(str(val_viejo).replace(".", "").replace(",", ""))
-                                    
-                                    # El valor actual viejo pasa a ser el Odómetro anterior (Columna F / Col 6)
-                                    ws_vehiculos.update_cell(fila_veh, 6, val_viejo)
-                                    # El nuevo valor ingresado por el chofer se guarda en Odómetro actual (Columna D / Col 4)
-                                    ws_vehiculos.update_cell(fila_veh, 4, km_actual_ingresado)
-                                    break
+                            
+                            # Buscamos de forma directa la celda que contiene la patente en todo el documento
+                            celda_patente = ws_vehiculos.find(patente_buscada)
+                            
+                            if celda_patente:
+                                fila_veh = celda_patente.row
+                                
+                                # Leemos el valor que estaba en el Odómetro actual (Columna D / Columna 4)
+                                val_viejo = ws_vehiculos.cell(fila_veh, 4).value
+                                if val_viejo:
+                                    # Limpiamos puntos o comas por si tiene formato numérico con miles
+                                    val_limpio = str(val_viejo).replace(".", "").replace(",", "").strip()
+                                    if val_limpio.isdigit():
+                                        km_anterior_capturado = float(val_limpio)
+                                
+                                # El valor actual viejo pasa a ser el Odómetro anterior (Columna F / Columna 6)
+                                ws_vehiculos.update_cell(fila_veh, 6, val_viejo)
+                                # El nuevo valor ingresado por el chofer se guarda en Odómetro actual (Columna D / Columna 4)[cite: 9]
+                                ws_vehiculos.update_cell(fila_veh, 4, km_actual_ingresado)
+                            else:
+                                st.warning(f"No se encontró la patente {patente_buscada} en 'Base de datos VEHICULOS'.")
                         except Exception as e_veh:
                             st.warning(f"Nota en Base Vehículos: {e_veh}")
 
@@ -477,13 +483,13 @@ else:
                         try:
                             ws_odometro = sheet.worksheet("Odometro")
                             
-                            # Estructura exacta de columnas en Odometro:
+                            # Estructura exacta en Odometro:
                             # A: checkbox ("")
                             # B: Fecha ("")
                             # C: Dominio (patente_asignada)
                             # D: Km anterior (km_anterior_capturado)
                             # E: Km actual (km_actual_ingresado)
-                            # F: Km recorridos ("" para que actúe la fórmula de la planilla)
+                            # F: Km recorridos ("")
                             # G, H, I: ""
                             # J: Chofer (chofer_actual)
                             
