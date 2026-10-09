@@ -432,10 +432,6 @@ else:
                 finalizo_viaje = st.selectbox("¿Finalizó el viaje?", ["Sí", "No"])
                 km_actual = st.number_input("Kilometraje Actual", min_value=0.0, step=1.0)
                 
-                # Campos adicionales para alimentar la tabla de Odómetro
-                litros_consumidos = st.number_input("Litros de combustible cargados", min_value=0.0, step=0.1)
-                precio_litro = st.number_input("Precio por litro ($)", min_value=0.0, step=0.1)
-                
                 foto_odometro = st.file_uploader("Foto del Odómetro", type=["jpg", "jpeg", "png"])
                 
                 if st.form_submit_button("FINALIZAR Y ENVIAR CIERRE"):
@@ -468,36 +464,45 @@ else:
                                     if val_viejo:
                                         km_anterior_capturado = float(str(val_viejo).replace(".", "").replace(",", ""))
                                     
-                                    # Actualizamos la Base de Vehículos con el nuevo valor
-                                    ws_vehiculos.update_cell(fila_veh, 5, val_viejo) # Columna E (Km anterior)
-                                    ws_vehiculos.update_cell(fila_veh, 4, km_actual) # Columna D (Km actual)
+                                    # Actualizamos la Base de Vehículos desplazando el valor: el actual pasa a ser anterior
+                                    ws_vehiculos.update_cell(fila_veh, 5, val_viejo) # Columna E (Km anterior en vehículos)
+                                    ws_vehiculos.update_cell(fila_veh, 4, km_actual) # Columna D (Km actual en vehículos)
                                     break
                         except Exception as e_veh:
                             st.warning(f"Nota en Base Vehículos: {e_veh}")
 
-                        # 3. Registrar de forma directa en la pestaña "Odometro" incluyendo al chofer activo
+                        # 3. Registrar en la pestaña "Odometro" respetando el orden exacto de tus columnas:
+                        # Col A: checkbox (vacío)
+                        # Col B: Fecha (vacío o timestamp si prefieres, lo dejamos vacío para mantener tu formato)
+                        # Col C: Dominio
+                        # Col D: Km anterior
+                        # Col E: Km actual
+                        # Col F: Km recorridos (lo dejamos vacío para que actúe la fórmula nativa de la planilla, o se calcula)
+                        # Col G, H, I: vacíos (Litros, Precio, Total que ya no usamos acá)
+                        # Col J: Chofer
                         try:
                             ws_odometro = sheet.worksheet("Odometro")
                             
-                            total_combustible = litros_consumidos * precio_litro
-                            km_recorridos_calc = km_actual - km_anterior_capturado if km_anterior_capturado > 0 else 0
+                            # Insertamos una lista vacía para respetar las 10 columnas de la tabla (A hasta J)
+                            # Índice 0 (A): ""
+                            # Índice 1 (B): "" (Fecha)
+                            # Índice 2 (C): Dominio
+                            # Índice 3 (D): Km anterior
+                            # Índice 4 (E): Km actual
+                            # Índice 5 (F): "" (Km recorridos - si tiene fórmula automática se dejará en blanco para que la calcule)
+                            # Índice 6 (G): "" (Litros)
+                            # Índice 7 (H): "" (Precio)
+                            # Índice 8 (I): "" (Total combustible)
+                            # Índice 9 (J): Chofer
                             
-                            ws_odometro.append_row([
-                                datetime.now().strftime("%d/%m/%Y"), # Fecha
-                                patente_asignada,                    # Dominio
-                                km_anterior_capturado,               # Km anterior
-                                km_actual,                           # Km actual
-                                km_recorridos_calc,                  # Km recorridos
-                                litros_consumidos,                   # Litros
-                                precio_litro,                        # Precio
-                                total_combustible,                   # Total combustible
-                                chofer_actual                        # Chofer (Registrado automáticamente)
-                            ], value_input_option='USER_ENTERED')
+                            fila_datos = ["", "", patente_asignada, km_anterior_capturado, km_actual, "", "", "", "", chofer_actual]
+                            
+                            ws_odometro.append_row(fila_datos, value_input_option='USER_ENTERED')
 
                         except Exception as e_odo:
                             st.warning(f"Nota al actualizar pestaña Odometro: {e_odo}")
 
-                        st.success("¡Cierre de viaje y registros de odómetro actualizados con éxito en Google Sheets!")
+                        st.success("¡Cierre de viaje registrado correctamente en las columnas de la flota!")
 
                     except Exception as e:
                         st.error(f"Error al procesar el cierre: {e}")
