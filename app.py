@@ -451,55 +451,57 @@ else:
 
                         km_anterior_capturado = 0
                         
-                        # 2. Actualizar la Base de datos VEHICULOS usando búsqueda exacta (.find)
+                        # 2. Localizar y actualizar la Base de datos VEHICULOS de forma robusta
                         try:
-                            ws_vehiculos = sheet.worksheet("Base de datos VEHICULOS")
-                            patente_buscada = patente_asignada.strip().upper()
+                            # Buscamos la solapa de vehículos de manera flexible (evita errores por tildes o mayúsculas)
+                            ws_vehiculos = None
+                            for ws in sheet.worksheets():
+                                if "vehiculo" in ws.title.lower() or "vehículo" in ws.title.lower():
+                                    ws_vehiculos = ws
+                                    break
                             
-                            # Buscamos de forma directa la celda que contiene la patente en todo el documento
-                            celda_patente = ws_vehiculos.find(patente_buscada)
-                            
-                            if celda_patente:
-                                fila_veh = celda_patente.row
+                            if ws_vehiculos:
+                                patente_buscada = patente_asignada.strip().upper()
                                 
-                                # Leemos el valor que estaba en el Odómetro actual (Columna D / Columna 4)
-                                val_viejo = ws_vehiculos.cell(fila_veh, 4).value
-                                if val_viejo:
-                                    # Limpiamos puntos o comas por si tiene formato numérico con miles
-                                    val_limpio = str(val_viejo).replace(".", "").replace(",", "").strip()
-                                    if val_limpio.isdigit():
-                                        km_anterior_capturado = float(val_limpio)
+                                # Obtenemos todos los valores de la columna B (Patentes)
+                                col_patentes = ws_vehiculos.col_values(2)
+                                fila_encontrada = None
                                 
-                                # El valor actual viejo pasa a ser el Odómetro anterior (Columna F / Columna 6)
-                                ws_vehiculos.update_cell(fila_veh, 6, val_viejo)
-                                # El nuevo valor ingresado por el chofer se guarda en Odómetro actual (Columna D / Columna 4)[cite: 9]
-                                ws_vehiculos.update_cell(fila_veh, 4, km_actual_ingresado)
+                                for idx, pat in enumerate(col_patentes):
+                                    if pat.strip().upper() == patente_buscada:
+                                        fila_encontrada = idx + 1 # Las filas en Google Sheets arrancan en 1
+                                        break
+                                
+                                if fila_encontrada:
+                                    # Leemos el valor actual en la Columna D (Columna 4)
+                                    val_viejo = ws_vehiculos.cell(fila_encontrada, 4).value
+                                    if val_viejo is not None and str(val_viejo).strip() != "":
+                                        val_limpio = str(val_viejo).replace(".", "").replace(",", "").strip()
+                                        if val_limpio.isdigit():
+                                            km_anterior_capturado = float(val_limpio)
+                                    
+                                    # Actualizamos la Columna F (Columna 6 - Odómetro anterior) con el valor viejo
+                                    ws_vehiculos.update_cell(fila_encontrada, 6, val_viejo if val_viejo else 0)
+                                    
+                                    # Actualizamos la Columna D (Columna 4 - Odómetro actual) con el nuevo valor del chofer
+                                    ws_vehiculos.update_cell(fila_encontrada, 4, km_actual_ingresado)
+                                    st.success(f"Vehículo {patente_buscada} actualizado en Base de Vehículos (Fila {fila_encontrada}).")
+                                else:
+                                    st.warning(f"No se encontró la patente '{patente_buscada}' en la columna B de vehículos.")
                             else:
-                                st.warning(f"No se encontró la patente {patente_buscada} en 'Base de datos VEHICULOS'.")
+                                st.error("No se encontró ninguna pestaña relacionada con vehículos en el Google Sheets.")
                         except Exception as e_veh:
-                            st.warning(f"Nota en Base Vehículos: {e_veh}")
+                            st.warning(f"Error detallado en Base Vehículos: {e_veh}")
 
-                        # 3. Registrar en la pestaña "Odometro" con los valores correctos
+                        # 3. Registrar en la pestaña "Odometro"
                         try:
                             ws_odometro = sheet.worksheet("Odometro")
-                            
-                            # Estructura exacta en Odometro:
-                            # A: checkbox ("")
-                            # B: Fecha ("")
-                            # C: Dominio (patente_asignada)
-                            # D: Km anterior (km_anterior_capturado)
-                            # E: Km actual (km_actual_ingresado)
-                            # F: Km recorridos ("")
-                            # G, H, I: ""
-                            # J: Chofer (chofer_actual)
-                            
                             fila_datos = ["", "", patente_asignada, km_anterior_capturado, km_actual_ingresado, "", "", "", "", chofer_actual]
                             ws_odometro.append_row(fila_datos, value_input_option='USER_ENTERED')
-
                         except Exception as e_odo:
                             st.warning(f"Nota al actualizar pestaña Odometro: {e_odo}")
 
-                        st.success("¡Cierre de viaje registrado con éxito y base de vehículos actualizada!")
+                        st.success("¡Cierre de viaje procesado exitosamente!")
 
                     except Exception as e:
                         st.error(f"Error al procesar el cierre: {e}")
