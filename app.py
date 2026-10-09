@@ -406,7 +406,7 @@ else:
                             cell = ws_asig.find(envio_n)
                             if cell:
                                 ws_asig.update_cell(cell.row, 8, estado_entrega)
-                        except:
+                        except Exception:
                             pass
 
                         st.success("¡Entrega registrada con éxito!")
@@ -416,71 +416,7 @@ else:
                             st.session_state.envio_index = 0
                         st.rerun()
 
-    # --- MÓDULO 2: CIERRE DE VIAJE ---
-        elif st.session_state.menu_activo == "Cierre":
-            st.subheader("⚙️ Cierre de Viaje y Rendición")
-            
-            envio_actual_texto = "ENV-000"
-            if envios_disponibles and len(envios_disponibles) > 0:
-                if st.session_state.envio_index >= len(envios_disponibles):
-                    st.session_state.envio_index = 0
-                envio_actual_texto = envios_disponibles[st.session_state.envio_index]["envio"]
-
-            with st.form("form_cierre_mod"):
-                vehiculo_id = st.text_input("Dominio", value=patente_asignada, disabled=True)
-                envio_cierre = st.text_input("Envío Actual", value=envio_actual_texto, disabled=True)
-                finalizo_viaje = st.selectbox("¿Finalizó el viaje?", ["Sí", "No"])
-                km_actual_ingresado = st.number_input("Kilometraje Actual", min_value=0.0, step=1.0)
-                
-                if st.form_submit_button("FINALIZAR Y ENVIAR CIERRE"):
-                    try:
-                        # 1. Guardar en la solapa Cierres (Histórico de la app)
-                        try:
-                            ws_cierres = sheet.worksheet("Cierres")
-                        except:
-                            ws_cierres = sheet.add_worksheet(title="Cierres", rows=100, cols=10)
-                            ws_cierres.append_row(["Fecha", "Chofer", "Patente", "Envio", "Finalizo Viaje", "Km Actual", "Observaciones"])
-
-                        ws_cierres.append_row([
-                            datetime.now().strftime("%Y-%m-%d %H:%M"), chofer_actual, vehiculo_id, envio_cierre, 
-                            finalizo_viaje, km_actual_ingresado, "Sin observaciones"
-                        ], value_input_option='USER_ENTERED')
-
-                        km_anterior_capturado = 0
-                        
-                        # 2. Actualizar la Base de datos VEHICULOS
-                        try:
-                            ws_vehiculos = None
-                            for ws in sheet.worksheets():
-                                if "vehiculo" in ws.title.lower() or "vehículo" in ws.title.lower():
-                                    ws_vehiculos = ws
-                                    break
-                            
-                            if ws_vehiculos:
-                                patente_buscada = patente_asignada.strip().upper()
-                                col_patentes = ws_vehiculos.col_values(2)
-                                fila_encontrada = None
-                                
-                                for idx, pat in enumerate(col_patentes):
-                                    if pat.strip().upper() == patente_buscada:
-                                        fila_encontrada = idx + 1
-                                        break
-                                
-                                if fila_encontrada:
-                                    val_viejo = ws_vehiculos.cell(fila_encontrada, 4).value
-                                    if val_viejo is not None and str(val_viejo).strip() != "":
-                                        val_limpio = str(val_viejo).replace(".", "").replace(",", "").strip()
-                                        if val_limpio.isdigit():
-                                            km_anterior_capturado = float(val_limpio)
-                                    
-                                    # El valor actual pasa a ser el anterior (Columna F / Col 6)
-                                    ws_vehiculos.update_cell(fila_encontrada, 6, val_viejo if val_viejo else 0)
-                                    # El nuevo valor del chofer se guarda en el actual (Columna D / Col 4)
-                                    ws_vehiculos.update_cell(fila_encontrada, 4, km_actual_ingresado)
-                        except Exception as e_veh:
-                            st.warning(f"Error en Base Vehículos: {e_veh}")
-
-                        # --- MÓDULO 2: CIERRE DE VIAJE ---
+        # --- MÓDULO 2: CIERRE DE VIAJE ---
         elif st.session_state.menu_activo == "Cierre":
             st.subheader("⚙️ Cierre de Viaje y Rendición")
             
@@ -501,7 +437,7 @@ else:
                         # 1. Guardar en la solapa Cierres (Histórico de app)
                         try:
                             ws_cierres = sheet.worksheet("Cierres")
-                        except:
+                        except Exception:
                             ws_cierres = sheet.add_worksheet(title="Cierres", rows=100, cols=10)
                             ws_cierres.append_row(["Fecha", "Chofer", "Patente", "Envio", "Finalizo Viaje", "Km Actual", "Observaciones"])
 
