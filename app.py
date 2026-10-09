@@ -416,7 +416,7 @@ else:
                             st.session_state.envio_index = 0
                         st.rerun()
 
-     # --- MÓDULO 2: CIERRE DE VIAJE ---
+    # --- MÓDULO 2: CIERRE DE VIAJE ---
         elif st.session_state.menu_activo == "Cierre":
             st.subheader("⚙️ Cierre de Viaje y Rendición")
             
@@ -432,21 +432,18 @@ else:
                 finalizo_viaje = st.selectbox("¿Finalizó el viaje?", ["Sí", "No"])
                 km_actual_ingresado = st.number_input("Kilometraje Actual", min_value=0.0, step=1.0)
                 
-                foto_odometro = st.file_uploader("Foto del Odómetro", type=["jpg", "jpeg", "png"])
-                
                 if st.form_submit_button("FINALIZAR Y ENVIAR CIERRE"):
-                    link_foto = "Sin foto"
                     try:
-                        # 1. Guardar en la solapa Cierres (Histórico de app)
+                        # 1. Guardar en la solapa Cierres (Histórico de la app)
                         try:
                             ws_cierres = sheet.worksheet("Cierres")
                         except:
                             ws_cierres = sheet.add_worksheet(title="Cierres", rows=100, cols=10)
-                            ws_cierres.append_row(["Fecha", "Chofer", "Patente", "Envio", "Finalizo Viaje", "Km Actual", "Observaciones", "Acceso Foto Odómetro"])
+                            ws_cierres.append_row(["Fecha", "Chofer", "Patente", "Envio", "Finalizo Viaje", "Km Actual", "Observaciones"])
 
                         ws_cierres.append_row([
                             datetime.now().strftime("%Y-%m-%d %H:%M"), chofer_actual, vehiculo_id, envio_cierre, 
-                            finalizo_viaje, km_actual_ingresado, "Sin observaciones", link_foto
+                            finalizo_viaje, km_actual_ingresado, "Sin observaciones"
                         ], value_input_option='USER_ENTERED')
 
                         km_anterior_capturado = 0
@@ -483,25 +480,33 @@ else:
                         except Exception as e_veh:
                             st.warning(f"Error en Base Vehículos: {e_veh}")
 
-                        # 3. Registrar en la pestaña "Odometro" dentro de la tabla
+                        # 3. Registrar en la pestaña "Odometro" usando append_row para expandir la Tabla_4 limpiamente
                         try:
                             ws_odometro = sheet.worksheet("Odometro")
-                            
-                            columna_dominios = ws_odometro.col_values(3)
-                            siguiente_fila = len(columna_dominios) + 1
-                            
                             fecha_actual_str = datetime.now().strftime("%d/%m/%Y")
                             
-                            ws_odometro.update_cell(siguiente_fila, 2, fecha_actual_str)    # Columna B: Fecha
-                            ws_odometro.update_cell(siguiente_fila, 3, patente_asignada)       # Columna C: Dominio
-                            ws_odometro.update_cell(siguiente_fila, 4, km_anterior_capturado)  # Columna D: Km anterior
-                            ws_odometro.update_cell(siguiente_fila, 5, km_actual_ingresado)    # Columna E: Km actual
-                            ws_odometro.update_cell(siguiente_fila, 10, chofer_actual)         # Columna J: Chofer
+                            # Estructura de las 10 columnas de la tabla (desde A hasta J):
+                            # [Verifica (A), Fecha (B), Dominio (C), Km anterior (D), Km actual (E), Km recorridos (F), Litros (G), Precio (H), Total (I), Chofer (J)]
+                            fila_datos = [
+                                False,                  # A: Casilla de verificación vacía
+                                fecha_actual_str,       # B: Fecha
+                                patente_asignada,       # C: Dominio
+                                km_anterior_capturado,  # D: Km anterior
+                                km_actual_ingresado,    # E: Km actual
+                                "",                     # F: Km recorridos (calculado por la fórmula de la tabla)
+                                "",                     # G: Litros
+                                "",                     # H: Precio
+                                "",                     # I: Total combustible
+                                chofer_actual           # J: Chofer
+                            ]
+                            
+                            # append_row añade la fila al final del rango activo, expandiendo automáticamente la Tabla_4
+                            ws_odometro.append_row(fila_datos, value_input_option='USER_ENTERED')
 
                         except Exception as e_odo:
                             st.warning(f"Nota al actualizar pestaña Odometro: {e_odo}")
 
-                        st.success("¡Cierre de viaje registrado correctamente en la tabla de Odómetro!")
+                        st.success("¡Cierre de viaje registrado con éxito y añadido a la tabla de Odómetro!")
 
                     except Exception as e:
                         st.error(f"Error al procesar el cierre: {e}")
