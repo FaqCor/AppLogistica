@@ -486,8 +486,8 @@ else:
                             
                             columna_dominios = ws_odometro.col_values(3)
                             siguiente_fila = len(columna_dominios) + 1
-                            if siguiente_fila < 7:
-                                siguiente_fila = 7
+                            if siguiente_fila < 2:
+                                siguiente_fila = 2
                                 
                             fecha_actual_str = datetime.now().strftime("%d/%m/%Y")
                             
