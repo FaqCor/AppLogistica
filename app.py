@@ -416,11 +416,10 @@ else:
                             st.session_state.envio_index = 0
                         st.rerun()
 
-        # --- MÓDULO 2: CIERRE DE VIAJE ---
+       # --- MÓDULO 2: CIERRE DE VIAJE ---
         elif st.session_state.menu_activo == "Cierre":
             st.subheader("⚙️ Cierre de Viaje y Rendición")
             
-            # Protección contra listas vacías de envíos
             envio_actual_texto = "ENV-000"
             if envios_disponibles and len(envios_disponibles) > 0:
                 if st.session_state.envio_index >= len(envios_disponibles):
@@ -432,12 +431,17 @@ else:
                 envio_cierre = st.text_input("Envío Actual", value=envio_actual_texto, disabled=True)
                 finalizo_viaje = st.selectbox("¿Finalizó el viaje?", ["Sí", "No"])
                 km_actual = st.number_input("Kilometraje Actual", min_value=0.0, step=1.0)
+                
+                # Campos adicionales para alimentar la tabla de Odómetro
+                litros_consumidos = st.number_input("Litros de combustible cargados", min_value=0.0, step=0.1)
+                precio_litro = st.number_input("Precio por litro ($)", min_value=0.0, step=0.1)
+                
                 foto_odometro = st.file_uploader("Foto del Odómetro", type=["jpg", "jpeg", "png"])
                 
                 if st.form_submit_button("FINALIZAR Y ENVIAR CIERRE"):
                     link_foto = "Sin foto"
                     try:
-                        # 1. Guardar en la solapa Cierres
+                        # 1. Guardar en la solapa Cierres (Histórico de app)
                         try:
                             ws_cierres = sheet.worksheet("Cierres")
                         except:
@@ -449,65 +453,54 @@ else:
                             finalizo_viaje, km_actual, "Sin observaciones", link_foto
                         ], value_input_option='USER_ENTERED')
 
-                        km_anterior_capturado = None
-                        actualizado_vehiculos = False
+                        km_anterior_capturado = 0
                         
+                        # 2. Obtener el Km anterior desde la Base de datos VEHICULOS antes de actualizar
                         try:
-                            ws_vehiculos = None
-                            for ws in sheet.worksheets():
-                                if "vehiculo" in ws.title.lower() or "vehículo" in ws.title.lower():
-                                    ws_vehiculos = ws
-                                    break
+                            ws_vehiculos = sheet.worksheet("Base de datos VEHICULOS")
+                            lista_patentes = ws_vehiculos.col_values(2) # Columna B
                             
-                            if ws_vehiculos and patente_asignada and patente_asignada != "Sin Asignar" and km_actual > 0:
-                                lista_patentes = ws_vehiculos.col_values(2) # Columna B (Patente)
-                                
-                                fila_encontrada = None
-                                patente_buscada = patente_asignada.strip().upper()
-                                for idx, pat in enumerate(lista_patentes):
-                                    if pat.strip().upper() == patente_buscada:
-                                        fila_encontrada = idx + 1
-                                        break
-                                
-                                if fila_encontrada:
-                                    km_actual_viejo = ws_vehiculos.cell(fila_encontrada, 4).value
-                                    if km_actual_viejo:
-                                        km_anterior_capturado = km_actual_viejo
-                                        ws_vehiculos.update_cell(fila_encontrada, 6, km_actual_viejo)
-                                
-                                    ws_vehiculos.update_cell(fila_encontrada, 4, km_actual)
-                                    actualizado_vehiculos = True
+                            patente_buscada = patente_asignada.strip().upper()
+                            for idx, pat in enumerate(lista_patentes):
+                                if pat.strip().upper() == patente_buscada:
+                                    fila_veh = idx + 1
+                                    val_viejo = ws_vehiculos.cell(fila_veh, 4).value
+                                    if val_viejo:
+                                        km_anterior_capturado = float(str(val_viejo).replace(".", "").replace(",", ""))
+                                    
+                                    # Actualizamos la Base de Vehículos con el nuevo valor
+                                    ws_vehiculos.update_cell(fila_veh, 5, val_viejo) # Columna E (Km anterior)
+                                    ws_vehiculos.update_cell(fila_veh, 4, km_actual) # Columna D (Km actual)
+                                    break
                         except Exception as e_veh:
-                            st.warning(f"Nota sobre vehículos: {e_veh}")
+                            st.warning(f"Nota en Base Vehículos: {e_veh}")
 
+                        # 3. Registrar de forma directa en la pestaña "Odometro" incluyendo al chofer activo
                         try:
                             ws_odometro = sheet.worksheet("Odometro")
-                            fila_cabecera = ws_odometro.row_values(2)
                             
-                            columna_patente = None
-                            patente_buscada = patente_asignada.strip().upper()
+                            total_combustible = litros_consumidos * precio_litro
+                            km_recorridos_calc = km_actual - km_anterior_capturado if km_anterior_capturado > 0 else 0
                             
-                            for c_idx, val in enumerate(fila_cabecera):
-                                if val.strip().upper() == patente_buscada:
-                                    columna_patente = c_idx + 1
-                                    break
-                            
-                            if columna_patente and km_anterior_capturado:
-                                valores_columna = ws_odometro.col_values(columna_patente)
-                                siguiente_fila = len(valores_columna) + 1
-                                if siguiente_fila < 3:
-                                    siguiente_fila = 3
-                                ws_odometro.update_cell(siguiente_fila, columna_patente, km_anterior_capturado)
-                        except Exception as e_odo:
-                            st.warning(f"Nota en pestaña Odometro: {e_odo}")
+                            ws_odometro.append_row([
+                                datetime.now().strftime("%d/%m/%Y"), # Fecha
+                                patente_asignada,                    # Dominio
+                                km_anterior_capturado,               # Km anterior
+                                km_actual,                           # Km actual
+                                km_recorridos_calc,                  # Km recorridos
+                                litros_consumidos,                   # Litros
+                                precio_litro,                        # Precio
+                                total_combustible,                   # Total combustible
+                                chofer_actual                        # Chofer (Registrado automáticamente)
+                            ], value_input_option='USER_ENTERED')
 
-                        st.success("¡Cierre de viaje registrado con éxito!")
-                        if actualizado_vehiculos:
-                            st.success("¡Odómetro anterior registrado en la pestaña histórica por vehículo correctamente!")
-                        
+                        except Exception as e_odo:
+                            st.warning(f"Nota al actualizar pestaña Odometro: {e_odo}")
+
+                        st.success("¡Cierre de viaje y registros de odómetro actualizados con éxito en Google Sheets!")
+
                     except Exception as e:
                         st.error(f"Error al procesar el cierre: {e}")
-
         # --- MÓDULO 3: HOJA DE RUTA Y MAPA ---
         elif st.session_state.menu_activo == "Ruta":
             st.subheader("🗺️ Hoja de Ruta Óptima")
