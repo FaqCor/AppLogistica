@@ -483,40 +483,29 @@ else:
                         except Exception as e_veh:
                             st.warning(f"Error en Base Vehículos: {e_veh}")
 
-                        # 3. Registrar en la pestaña "Odometro" de forma explícita por número de fila siguiente
+                        # 3. Registrar en la pestaña "Odometro" integrándolo dentro de la tabla
                         try:
                             ws_odometro = sheet.worksheet("Odometro")
                             
-                            # En lugar de append_row (que choca con las Tablas Inteligentes de Excel/Sheets), 
-                            # calculamos exactamente la siguiente fila vacía basándonos en la columna C (Dominio)
-                            columna_dominios = ws_odometro.col_values(3) # Columna C
+                            # Obtenemos la última fila que tiene contenido en la columna de dominios (Columna C)
+                            columna_dominios = ws_odometro.col_values(3)
                             siguiente_fila = len(columna_dominios) + 1
                             
-                            # Si la tabla tiene espacios vacíos arriba, asegurarnos de que al menos caiga debajo de la última fila visual
-                            if siguiente_fila < 7:
-                                siguiente_fila = 7 # Forzamos a que baje de la fila 6 actual para que no la pise
-                                
+                            # Si la tabla actual termina en la fila 5, la siguiente_fila será exactamente 6 (la primera de adentro)
                             fecha_actual_str = datetime.now().strftime("%d/%m/%Y")
                             
-                            # Actualizamos celda por celda o en rango limpio en esa fila exacta:
-                            # Columna B (2): Fecha
-                            # Columna C (3): Dominio
-                            # Columna D (4): Km anterior
-                            # Columna E (5): Km actual
-                            # Columna J (10): Chofer
-                            ws_odometro.update_cell(siguiente_fila, 2, fecha_actual_str)
-                            ws_odometro.update_cell(siguiente_fila, 3, patente_asignada)
-                            ws_odometro.update_cell(siguiente_fila, 4, km_anterior_capturado)
-                            ws_odometro.update_cell(siguiente_fila, 5, km_actual_ingresado)
-                            ws_odometro.update_cell(siguiente_fila, 10, chofer_actual)
+                            # Insertamos los datos en la fila exacta que continúa la tabla
+                            ws_odometro.update_cell(siguiente_fila, 2, fecha_actual_str)    # Columna B: Fecha
+                            ws_odometro.update_cell(siguiente_fila, 3, patente_asignada)       # Columna C: Dominio
+                            ws_odometro.update_cell(siguiente_fila, 4, km_anterior_capturado)  # Columna D: Km anterior
+                            ws_odometro.update_cell(siguiente_fila, 5, km_actual_ingresado)    # Columna E: Km actual
+                            ws_odometro.update_cell(siguiente_fila, 10, chofer_actual)         # Columna J: Chofer
+                            
+                            # Nota: Las columnas F (Km recorridos), G, H, I y K se autocompletarán solas 
+                            # si tienen fórmulas o se expandirán con el formato de la Tabla_4.
 
                         except Exception as e_odo:
                             st.warning(f"Nota al actualizar pestaña Odometro: {e_odo}")
-
-                        st.success("¡Cierre de viaje registrado correctamente en la siguiente línea de Odómetro!")
-
-                    except Exception as e:
-                        st.error(f"Error al procesar el cierre: {e}")
         # --- MÓDULO 3: HOJA DE RUTA Y MAPA ---
         elif st.session_state.menu_activo == "Ruta":
             st.subheader("🗺️ Hoja de Ruta Óptima")
