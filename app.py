@@ -416,7 +416,7 @@ else:
                             st.session_state.envio_index = 0
                         st.rerun()
 
-      # --- MÓDULO 2: CIERRE DE VIAJE ---
+     # --- MÓDULO 2: CIERRE DE VIAJE ---
         elif st.session_state.menu_activo == "Cierre":
             st.subheader("⚙️ Cierre de Viaje y Rendición")
             
@@ -451,7 +451,7 @@ else:
 
                         km_anterior_capturado = 0
                         
-                        # 2. Actualizar la Base de datos VEHICULOS (Actualiza el estado actual del vehículo)
+                        # 2. Actualizar la Base de datos VEHICULOS
                         try:
                             ws_vehiculos = None
                             for ws in sheet.worksheets():
@@ -483,30 +483,37 @@ else:
                         except Exception as e_veh:
                             st.warning(f"Error en Base Vehículos: {e_veh}")
 
-                        # 3. Registrar en la pestaña "Odometro" AGREGANDO una nueva fila abajo (Histórico)
+                        # 3. Registrar en la pestaña "Odometro" de forma explícita por número de fila siguiente
                         try:
                             ws_odometro = sheet.worksheet("Odometro")
                             
-                            # Estructura de columnas para la tabla Odometro:
-                            # Col A (0): "" (checkbox)
-                            # Col B (1): Fecha (aquí sí podemos poner la fecha actual del cierre)
-                            # Col C (2): Dominio
-                            # Col D (3): Km anterior
-                            # Col E (4): Km actual
-                            # Col F (5): Km recorridos ("" para que actúe la fórmula)
-                            # Col G, H, I: ""
-                            # Col J (9): Chofer
+                            # En lugar de append_row (que choca con las Tablas Inteligentes de Excel/Sheets), 
+                            # calculamos exactamente la siguiente fila vacía basándonos en la columna C (Dominio)
+                            columna_dominios = ws_odometro.col_values(3) # Columna C
+                            siguiente_fila = len(columna_dominios) + 1
                             
+                            # Si la tabla tiene espacios vacíos arriba, asegurarnos de que al menos caiga debajo de la última fila visual
+                            if siguiente_fila < 7:
+                                siguiente_fila = 7 # Forzamos a que baje de la fila 6 actual para que no la pise
+                                
                             fecha_actual_str = datetime.now().strftime("%d/%m/%Y")
-                            fila_datos = ["", fecha_actual_str, patente_asignada, km_anterior_capturado, km_actual_ingresado, "", "", "", "", chofer_actual]
                             
-                            # append_row inserta los datos estrictamente en la PRIMERA FILA VACÍA de abajo
-                            ws_odometro.append_row(fila_datos, value_input_option='USER_ENTERED')
+                            # Actualizamos celda por celda o en rango limpio en esa fila exacta:
+                            # Columna B (2): Fecha
+                            # Columna C (3): Dominio
+                            # Columna D (4): Km anterior
+                            # Columna E (5): Km actual
+                            # Columna J (10): Chofer
+                            ws_odometro.update_cell(siguiente_fila, 2, fecha_actual_str)
+                            ws_odometro.update_cell(siguiente_fila, 3, patente_asignada)
+                            ws_odometro.update_cell(siguiente_fila, 4, km_anterior_capturado)
+                            ws_odometro.update_cell(siguiente_fila, 5, km_actual_ingresado)
+                            ws_odometro.update_cell(siguiente_fila, 10, chofer_actual)
 
                         except Exception as e_odo:
                             st.warning(f"Nota al actualizar pestaña Odometro: {e_odo}")
 
-                        st.success("¡Cierre de viaje registrado con éxito en una nueva línea del histórico de odómetro!")
+                        st.success("¡Cierre de viaje registrado correctamente en la siguiente línea de Odómetro!")
 
                     except Exception as e:
                         st.error(f"Error al procesar el cierre: {e}")
