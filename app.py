@@ -416,7 +416,7 @@ else:
                             st.session_state.envio_index = 0
                         st.rerun()
 
-       # --- MÓDULO 2: CIERRE DE VIAJE ---
+      # --- MÓDULO 2: CIERRE DE VIAJE ---
         elif st.session_state.menu_activo == "Cierre":
             st.subheader("⚙️ Cierre de Viaje y Rendición")
             
@@ -430,7 +430,7 @@ else:
                 vehiculo_id = st.text_input("Dominio", value=patente_asignada, disabled=True)
                 envio_cierre = st.text_input("Envío Actual", value=envio_actual_texto, disabled=True)
                 finalizo_viaje = st.selectbox("¿Finalizó el viaje?", ["Sí", "No"])
-                km_actual = st.number_input("Kilometraje Actual", min_value=0.0, step=1.0)
+                km_actual_ingresado = st.number_input("Kilometraje Actual", min_value=0.0, step=1.0)
                 
                 foto_odometro = st.file_uploader("Foto del Odómetro", type=["jpg", "jpeg", "png"])
                 
@@ -446,63 +446,54 @@ else:
 
                         ws_cierres.append_row([
                             datetime.now().strftime("%Y-%m-%d %H:%M"), chofer_actual, vehiculo_id, envio_cierre, 
-                            finalizo_viaje, km_actual, "Sin observaciones", link_foto
+                            finalizo_viaje, km_actual_ingresado, "Sin observaciones", link_foto
                         ], value_input_option='USER_ENTERED')
 
                         km_anterior_capturado = 0
                         
-                        # 2. Obtener el Km anterior desde la Base de datos VEHICULOS antes de actualizar
+                        # 2. Actualizar la Base de datos VEHICULOS (Columna D = Actual, Columna F = Anterior)
                         try:
                             ws_vehiculos = sheet.worksheet("Base de datos VEHICULOS")
-                            lista_patentes = ws_vehiculos.col_values(2) # Columna B
+                            lista_patentes = ws_vehiculos.col_values(2) # Columna B (Patente)
                             
                             patente_buscada = patente_asignada.strip().upper()
                             for idx, pat in enumerate(lista_patentes):
                                 if pat.strip().upper() == patente_buscada:
                                     fila_veh = idx + 1
+                                    # Leemos el valor que estaba en el Odómetro actual (Columna D / Col 4)
                                     val_viejo = ws_vehiculos.cell(fila_veh, 4).value
                                     if val_viejo:
                                         km_anterior_capturado = float(str(val_viejo).replace(".", "").replace(",", ""))
                                     
-                                    # Actualizamos la Base de Vehículos desplazando el valor: el actual pasa a ser anterior
-                                    ws_vehiculos.update_cell(fila_veh, 5, val_viejo) # Columna E (Km anterior en vehículos)
-                                    ws_vehiculos.update_cell(fila_veh, 4, km_actual) # Columna D (Km actual en vehículos)
+                                    # El valor actual viejo pasa a ser el Odómetro anterior (Columna F / Col 6)
+                                    ws_vehiculos.update_cell(fila_veh, 6, val_viejo)
+                                    # El nuevo valor ingresado por el chofer se guarda en Odómetro actual (Columna D / Col 4)
+                                    ws_vehiculos.update_cell(fila_veh, 4, km_actual_ingresado)
                                     break
                         except Exception as e_veh:
                             st.warning(f"Nota en Base Vehículos: {e_veh}")
 
-                        # 3. Registrar en la pestaña "Odometro" respetando el orden exacto de tus columnas:
-                        # Col A: checkbox (vacío)
-                        # Col B: Fecha (vacío o timestamp si prefieres, lo dejamos vacío para mantener tu formato)
-                        # Col C: Dominio
-                        # Col D: Km anterior
-                        # Col E: Km actual
-                        # Col F: Km recorridos (lo dejamos vacío para que actúe la fórmula nativa de la planilla, o se calcula)
-                        # Col G, H, I: vacíos (Litros, Precio, Total que ya no usamos acá)
-                        # Col J: Chofer
+                        # 3. Registrar en la pestaña "Odometro" con los valores correctos
                         try:
                             ws_odometro = sheet.worksheet("Odometro")
                             
-                            # Insertamos una lista vacía para respetar las 10 columnas de la tabla (A hasta J)
-                            # Índice 0 (A): ""
-                            # Índice 1 (B): "" (Fecha)
-                            # Índice 2 (C): Dominio
-                            # Índice 3 (D): Km anterior
-                            # Índice 4 (E): Km actual
-                            # Índice 5 (F): "" (Km recorridos - si tiene fórmula automática se dejará en blanco para que la calcule)
-                            # Índice 6 (G): "" (Litros)
-                            # Índice 7 (H): "" (Precio)
-                            # Índice 8 (I): "" (Total combustible)
-                            # Índice 9 (J): Chofer
+                            # Estructura exacta de columnas en Odometro:
+                            # A: checkbox ("")
+                            # B: Fecha ("")
+                            # C: Dominio (patente_asignada)
+                            # D: Km anterior (km_anterior_capturado)
+                            # E: Km actual (km_actual_ingresado)
+                            # F: Km recorridos ("" para que actúe la fórmula de la planilla)
+                            # G, H, I: ""
+                            # J: Chofer (chofer_actual)
                             
-                            fila_datos = ["", "", patente_asignada, km_anterior_capturado, km_actual, "", "", "", "", chofer_actual]
-                            
+                            fila_datos = ["", "", patente_asignada, km_anterior_capturado, km_actual_ingresado, "", "", "", "", chofer_actual]
                             ws_odometro.append_row(fila_datos, value_input_option='USER_ENTERED')
 
                         except Exception as e_odo:
                             st.warning(f"Nota al actualizar pestaña Odometro: {e_odo}")
 
-                        st.success("¡Cierre de viaje registrado correctamente en las columnas de la flota!")
+                        st.success("¡Cierre de viaje registrado con éxito y base de vehículos actualizada!")
 
                     except Exception as e:
                         st.error(f"Error al procesar el cierre: {e}")
