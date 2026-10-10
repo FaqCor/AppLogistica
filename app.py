@@ -487,88 +487,89 @@ if st.session_state.menu_activo == "Entregas":
                     st.error(f"Error al registrar la entrega: {e}")
 
             # --- MÓDULO 2: CIERRE DE VIAJE ---
-if st.session_state.menu_activo == "Cierre":
-    st.subheader("⚙️ Cierre de Viaje y Rendición")
-    
-    envio_actual_texto = "ENV-000"
-    if envios_disponibles and len(envios_disponibles) > 0:
-        if st.session_state.envio_index >= len(envios_disponibles):
-            st.session_state.envio_index = 0
-        envio_actual_texto = envios_disponibles[st.session_state.envio_index]["envio"]
+        if st.session_state.menu_activo == "Cierre":
+            st.subheader("⚙️ Cierre de Viaje y Rendición")
+            
+            envio_actual_texto = "ENV-000"
+            if envios_disponibles and len(envios_disponibles) > 0:
+                if st.session_state.envio_index >= len(envios_disponibles):
+                    st.session_state.envio_index = 0
+                envio_actual_texto = envios_disponibles[st.session_state.envio_index]["envio"]
 
-    with st.form("form_cierre_mod"):
-        vehiculo_id = st.text_input("Dominio", value=patente_asignada, disabled=True)
-        envio_cierre = st.text_input("Envío Actual", value=envio_actual_texto, disabled=True)
-        finalizo_viaje = st.selectbox("¿Finalizó el viaje?", ["Sí", "No"])
-        km_actual_ingresado = st.number_input("Kilometraje Actual", min_value=0.0, step=1.0)
-        
-        if st.form_submit_button("FINALIZAR Y ENVIAR CIERRE"):
-            try:
-                # 1. Registrar en la pestaña Cierres
-                try:
-                    ws_cierres = sheet.worksheet("Cierres")
-                except Exception:
-                    ws_cierres = sheet.add_worksheet(title="Cierres", rows=100, cols=10)
-                    ws_cierres.append_row(["Fecha", "Chofer", "Patente", "Envio", "Finalizo Viaje", "Km Actual", "Observaciones"])
-
-                chofer_nombre = st.session_state.get("chofer_seleccionado", "Chofer")
-
-                ws_cierres.append_row([
-                    datetime.now().strftime("%Y-%m-%d %H:%M"), chofer_nombre, vehiculo_id, envio_cierre, 
-                    finalizo_viaje, km_actual_ingresado, "Sin observaciones"
-                ], value_input_option='USER_ENTERED')
-
-                km_anterior_capturado = 0
+            with st.form("form_cierre_mod"):
+                vehiculo_id = st.text_input("Dominio", value=patente_asignada, disabled=True)
+                envio_cierre = st.text_input("Envío Actual", value=envio_actual_texto, disabled=True)
+                finalizo_viaje = st.selectbox("¿Finalizó el viaje?", ["Sí", "No"])
+                km_actual_ingresado = st.number_input("Kilometraje Actual", min_value=0.0, step=1.0)
                 
-                # 2. Actualizar la Base de Vehículos
-                try:
-                    ws_vehiculos = None
-                    for ws in sheet.worksheets():
-                        if "vehiculo" in ws.title.lower() or "vehículo" in ws.title.lower():
-                            ws_vehiculos = ws
-                            break
-                    
-                    if ws_vehiculos:
-                        patente_buscada = patente_asignada.strip().upper()
-                        col_patentes = ws_vehiculos.col_values(2)
-                        fila_encontrada = None
+                if st.form_submit_button("FINALIZAR Y ENVIAR CIERRE"):
+                    try:
+                        # 1. Registrar en la pestaña Cierres
+                        try:
+                            ws_cierres = sheet.worksheet("Cierres")
+                        except Exception:
+                            ws_cierres = sheet.add_worksheet(title="Cierres", rows=100, cols=10)
+                            ws_cierres.append_row(["Fecha", "Chofer", "Patente", "Envio", "Finalizo Viaje", "Km Actual", "Observaciones"])
+
+                        chofer_nombre = st.session_state.get("chofer_seleccionado", "Chofer")
+
+                        ws_cierres.append_row([
+                            datetime.now().strftime("%Y-%m-%d %H:%M"), chofer_nombre, vehiculo_id, envio_cierre, 
+                            finalizo_viaje, km_actual_ingresado, "Sin observaciones"
+                        ], value_input_option='USER_ENTERED')
+
+                        km_anterior_capturado = 0
                         
-                        for idx, pat in enumerate(col_patentes):
-                            if pat.strip().upper() == patente_buscada:
-                                fila_encontrada = idx + 1
-                                break
-                        
-                        if fila_encontrada:
-                            val_viejo = ws_vehiculos.cell(fila_encontrada, 4).value
-                            if val_viejo is not None and str(val_viejo).strip() != "":
-                                val_limpio = str(val_viejo).replace(".", "").replace(",", "").strip()
-                                if val_limpio.isdigit():
-                                    km_anterior_capturado = float(val_limpio)
+                        # 2. Actualizar la Base de Vehículos y capturar el kilómetro anterior real
+                        try:
+                            ws_vehiculos = None
+                            for ws in sheet.worksheets():
+                                if "vehiculo" in ws.title.lower() or "vehículo" in ws.title.lower():
+                                    ws_vehiculos = ws
+                                    break
                             
-                            ws_vehiculos.update_cell(fila_encontrada, 6, val_viejo if val_viejo else 0)
-                            ws_vehiculos.update_cell(fila_encontrada, 4, km_actual_ingresado)
-                except Exception as e_veh:
-                    st.warning(f"Nota en Base Vehículos: {e_veh}")
+                            if ws_vehiculos:
+                                patente_buscada = patente_asignada.strip().upper()
+                                filas_veh = ws_vehiculos.get_all_values()
+                                fila_encontrada = None
+                                
+                                # Buscamos el dominio en la columna B (índice 1)
+                                for idx, fila in enumerate(filas_veh[1:], start=2):
+                                    if len(fila) > 1 and str(fila[1]).strip().upper() == patente_buscada:
+                                        fila_encontrada = idx
+                                        break
+                                
+                                if fila_encontrada:
+                                    # Obtenemos el valor actual de la Columna D (índice 3 - Km actual previo)
+                                    val_actual_previo = ws_vehiculos.cell(fila_encontrada, 4).value
+                                    if val_actual_previo is not None and str(val_actual_previo).strip() != "":
+                                        val_limpio = str(val_actual_previo).replace(".", "").replace(",", "").strip()
+                                        if val_limpio.isdigit():
+                                            km_anterior_capturado = float(val_limpio)
+                                    
+                                    # Desplazamos el Km actual previo hacia la Columna F (índice 6 - Km anterior) y guardamos el nuevo en Columna D
+                                    ws_vehiculos.update_cell(fila_encontrada, 6, val_actual_previo if val_actual_previo else 0)
+                                    ws_vehiculos.update_cell(fila_encontrada, 4, km_actual_ingresado)
+                        except Exception as e_veh:
+                            st.warning(f"Nota en Base Vehículos: {e_veh}")
 
-                # 3. Registrar de forma segura en la pestaña Odometro
-                try:
-                    ws_odometro = sheet.worksheet("Odometro")
-                    fecha_actual_str = datetime.now().strftime("%d/%m/%Y")
-                    nueva_fila_odometro = [False, fecha_actual_str, patente_asignada, km_anterior_capturado, km_actual_ingresado, "", "", "", "", chofer_nombre]
-                    ws_odometro.append_row(nueva_fila_odometro, value_input_option='USER_ENTERED')
-                except Exception as e_odo:
-                    st.warning(f"Nota al registrar en Odometro: {e_odo}")
+                        # 3. Registrar de forma limpia y ordenada en la pestaña Odometro (agregando abajo)
+                        try:
+                            ws_odometro = sheet.worksheet("Odometro")
+                            fecha_actual_str = datetime.now().strftime("%d/%m/%Y")
+                            
+                            # Estructura limpia para app_row (añade al final sin sobrescribir)
+                            # Col A: Checkbox (False), Col B: Fecha, Col C: Patente, Col D: Km Anterior, Col E: Km Actual, ..., Col J: Chofer
+                            nueva_fila_odometro = [False, fecha_actual_str, patente_asignada, km_anterior_capturado, km_actual_ingresado, "", "", "", "", chofer_nombre]
+                            ws_odometro.append_row(nueva_fila_odometro, value_input_option='USER_ENTERED')
+                        except Exception as e_odo:
+                            st.warning(f"Nota al registrar en Odometro: {e_odo}")
 
-                st.success("¡Cierre de viaje registrado con éxito!")
-                st.rerun()
+                        st.success("¡Cierre de viaje registrado con éxito!")
+                        st.rerun()
 
-            except Exception as e:
-                st.error(f"Error al procesar el cierre: {e}")
-
-        
-
-
-       
+                    except Exception as e:
+                        st.error(f"Error al procesar el cierre: {e}")
         # --- MÓDULO 3: HOJA DE RUTA Y MAPA ---
         elif st.session_state.menu_activo == "Ruta":
             st.subheader("🗺️ Hoja de Ruta Óptima")
