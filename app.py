@@ -226,7 +226,7 @@ def obtener_asignaciones_chofer(chofer):
                 if patente_asignada == "Sin Asignar" and dominio and dominio != "Sin Asignar":
                     patente_asignada = dominio
 
-               if is_checked and nro_orden != 99 and estado.strip().lower() != "entregado":
+                if is_checked and nro_orden != 99 and estado.strip().lower() != "entregado":
                     val_bultos = str(fila[6]).replace(".", "").replace(",", "").strip() if len(fila) > 6 else "1"
                     cant_bultos = int(val_bultos) if val_bultos.isdigit() else 1
 
