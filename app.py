@@ -420,7 +420,7 @@ else:
         st.markdown("---")
 
         # --- MÓDULO 1: ENTREGAS ---
-    if st.session_state.menu_activo == "Entregas":
+if st.session_state.menu_activo == "Entregas":
     st.subheader("📦 Registro de Entregas")
     if not envios_disponibles:
         st.success("🎉 No tienes envíos pendientes asignados en este momento.")
