@@ -473,24 +473,23 @@ else:
                                 nueva_fila = ["", fecha_cierre_actual, "", envio_a_actualizar, pedido_n, cant_bultos, estado_entrega, forma_cobro, monto, "", dni_recibe]
                                 ws_ent.append_row(nueva_fila)
 
-                            # Actualizar el estado en la solapa Asignación
-                            try:
-                                ws_asig = sheet.worksheet("Asignación")
-                                cell = ws_asig.find(envio_n)
-                                if cell:
-                                    ws_asig.update_cell(cell.row, 8, estado_entrega)
-                            except Exception:
-                                pass
-
-                            st.success(f"¡Pedido {envio_a_actualizar} cerrado y registrado con éxito!")
-                            if st.session_state.envio_index < len(envios_disponibles) - 1:
-                                st.session_state.envio_index += 1
-                            else:
-                                st.session_state.envio_index = 0
-                            st.rerun()
+                           # Actualizar el estado en la solapa Asignación
+                        try:
+                            ws_asig = sheet.worksheet("Asignación")
+                            # Buscamos el envío 'envio_n' únicamente en la columna 3 (Columna C: Envío N°)
+                            cell = ws_asig.find(envio_n, in_column=3)
+                            if cell:
+                                # Actualizamos la columna 11 (Columna K: Estado) con "ENTREGADO" o "NO ENTREGADO"
+                                ws_asig.update_cell(cell.row, 11, estado_entrega)
                         except Exception as e:
-                            st.error(f"Error al registrar la entrega: {e}")
+                            st.warning(f"No se pudo actualizar el estado en Asignación: {e}")
 
+                        st.success(f"¡Pedido {envio_a_actualizar} cerrado y registrado con éxito!")
+                        if st.session_state.envio_index < len(envios_disponibles) - 1:
+                            st.session_state.envio_index += 1
+                        else:
+                            st.session_state.envio_index = 0
+                        st.rerun()
         # --- MÓDULO 2: CIERRE DE VIAJE ---
         elif st.session_state.menu_activo == "Cierre":
             st.subheader("⚙️ Cierre de Viaje y Rendición")
