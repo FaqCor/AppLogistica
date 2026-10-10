@@ -134,60 +134,75 @@ def obtener_peso_destino(destino_str):
             return peso
     return 99
 
-def obtener_km_actual_vehiculo(patente):
-    """Busca de forma segura el kilometraje actual en la pestaña Base de datos VEHICULOS"""
-    if not patente or patente == "Sin Asignar":
-        return 0
+@st.cache_data(ttl=60, show_spinner=False)
+def cargar_datos_asignacion():
+    """Carga toda la solapa 'Asignación' una sola vez y la guarda en caché por 60 segundos"""
+    try:
+        ws = sheet.worksheet("Asignación")
+        return ws.get_all_values()
+    except Exception as e:
+        return []
+
+@st.cache_data(ttl=60, show_spinner=False)
+def cargar_datos_vehiculos():
+    """Carga toda la solapa de vehículos una sola vez para evitar consultas masivas"""
     try:
         ws_veh = None
         for ws in sheet.worksheets():
             if "vehiculo" in ws.title.lower() or "vehículo" in ws.title.lower():
                 ws_veh = ws
                 break
-        
-        if not ws_veh:
+        if ws_veh:
+            return ws_veh.get_all_values()
+    except Exception:
+        pass
+    return []
+
+def obtener_km_actual_vehiculo(patente):
+    """Busca el kilometraje utilizando los datos en caché"""
+    if not patente or patente == "Sin Asignar":
+        return 0
+    try:
+        filas_veh = cargar_datos_vehiculos()
+        if not filas_veh or len(filas_veh) < 2:
             return 0
             
-        patentes = ws_veh.col_values(2) # Columna B (Patente)
-        kms = ws_veh.col_values(4)      # Columna D (Odómetro actual)
+        encabezados = [str(h).strip().lower() for h in filas_veh[0]]
+        idx_pat = 1 # Columna B (Patente) por defecto
+        idx_km = 3  # Columna D (Odómetro actual) por defecto
         
         patente_clean = patente.strip().upper()
-        for idx, pat in enumerate(patentes):
-            if pat.strip().upper() == patente_clean:
-                if idx < len(kms):
-                    # Limpiamos los puntos de los miles y espacios (ej: "312.629" -> 312629)
-                    val_str = str(kms[idx]).replace(".", "").replace(",", "").strip()
+        for fila in filas_veh[1:]:
+            if len(fila) > max(idx_pat, idx_km):
+                pat = str(fila[idx_pat]).strip().upper()
+                if pat == patente_clean:
+                    val_str = str(fila[idx_km]).replace(".", "").replace(",", "").strip()
                     if val_str.isdigit():
                         return int(val_str)
-    except Exception as e:
-        print(f"Error al obtener km: {e}")
+    except Exception:
+        pass
     return 0
 
-@st.cache_data(ttl=10) # Guarda los datos en caché unos segundos para evitar saturar la API
 def obtener_asignaciones_chofer(chofer):
+    """Procesa las asignaciones utilizando los datos en caché para evitar el error 429"""
     envios_lista = []
     patente_asignada = "Sin Asignar"
     try:
-        ws = sheet.worksheet("Asignación")
-        # Traemos todas las filas de una sola vez para evitar múltiples peticiones (evita el error 429)
-        filas = ws.get_all_values()
+        filas = cargar_datos_asignacion()
         if not filas or len(filas) < 2:
             return patente_asignada, envios_lista
 
-        # La primera fila son los encabezados
         encabezados = [str(h).strip().lower() for h in filas[0]]
         
-        # Identificar índices de columnas clave de forma segura
-        # Columna E = Chofer (índice 4), F = Dominio (índice 5), N = Despachar (índice 13), P = Orden (índice 15)
-        idx_chofer = encabezados.index("chofer") if "chofer" in encabezados else 4
-        idx_envio = encabezados.index("envio n°") if "envio n°" in encabezados else (encabezados.index("envio") if "envio" in encabezados else 2)
-        idx_pedido = encabezados.index("pedido n°") if "pedido n°" in encabezados else (encabezados.index("pedido") if "pedido" in encabezados else 3)
-        idx_dominio = encabezados.index("dominio") if "dominio" in encabezados else (encabezados.index("patente") if "patente" in encabezados else 5)
-        idx_destino = encabezados.index("destino") if "destino" in encabezados else 9
-        idx_estado = encabezados.index("estado") if "estado" in encabezados else 7
-        idx_orden = 15 # Columna P (Orden de paradas) -> Índice 15
+        idx_chofer = 4  # Columna E
+        idx_envio = 2   # Columna C (Envío N°)
+        idx_pedido = 3  # Columna D (Pedido N°)
+        idx_dominio = 5 # Columna F (Dominio)
+        idx_destino = 9 # Columna J (Destino aprox)
+        idx_estado = 7  # Columna H (Estado)
+        idx_orden = 15  # Columna P (Orden de paradas)
 
-        for fila in filas[1:]: # Recorremos desde la segunda fila
+        for fila in filas[1:]:
             if len(fila) <= max(idx_chofer, idx_dominio):
                 continue
                 
@@ -200,29 +215,25 @@ def obtener_asignaciones_chofer(chofer):
                 destino = str(fila[idx_destino]).strip() if idx_destino < len(fila) else "Sin Destino"
                 estado = str(fila[idx_estado]).strip() if idx_estado < len(fila) else "Pendiente"
                 
-                # Extraer número de orden de la Columna P
                 nro_orden = 99
                 if idx_orden < len(fila):
                     val_ord = str(fila[idx_orden]).strip()
                     if val_ord.isdigit():
                         nro_orden = int(val_ord)
 
-                # Asignar patente si está disponible
                 if patente_asignada == "Sin Asignar" and dominio and dominio != "Sin Asignar":
                     patente_asignada = dominio
 
-                # Filtrar pendientes con orden asignado
                 if nro_orden != 99 and estado.strip().lower() != "entregado":
                     envios_lista.append({
                         "envio": envio, 
                         "pedido": pedido, 
-                        "bultos": 1, # Valor por defecto seguro
+                        "bultos": 1, 
                         "destino": destino, 
                         "dominio": dominio,
                         "orden": nro_orden
                     })
                     
-        # Ordenar según el número de la columna P
         envios_lista = sorted(envios_lista, key=lambda x: x["orden"])
 
     except Exception as e:
