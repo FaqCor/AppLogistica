@@ -523,7 +523,7 @@ else:
                         except Exception as e_odo:
                             st.warning(f"Nota al actualizar pestaña Odometro: {e_odo}")
 
-                        st.success("¡Cierre de viaje registrado con éxito y añadido en una nueva línea!")
+                        st.success("¡Cierre de viaje registrado con éxito!")
 
                     except Exception as e:
                         st.error(f"Error al procesar el cierre: {e}")
