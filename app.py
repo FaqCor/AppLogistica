@@ -163,51 +163,66 @@ def obtener_km_actual_vehiculo(patente):
         print(f"Error al obtener km: {e}")
     return 0
 
+@st.cache_data(ttl=10) # Guarda los datos en caché unos segundos para evitar saturar la API
 def obtener_asignaciones_chofer(chofer):
     envios_lista = []
     patente_asignada = "Sin Asignar"
     try:
         ws = sheet.worksheet("Asignación")
-        registros = ws.get_all_records()
-        columna_orden = ws.col_values(16)     # Columna P (Orden de paradas)
+        # Traemos todas las filas de una sola vez para evitar múltiples peticiones (evita el error 429)
+        filas = ws.get_all_values()
+        if not filas or len(filas) < 2:
+            return patente_asignada, envios_lista
+
+        # La primera fila son los encabezados
+        encabezados = [str(h).strip().lower() for h in filas[0]]
         
-        for idx, row in enumerate(registros):
-            fila_excel = idx + 2 
-            row_lower = {str(k).strip().lower(): v for k, v in row.items()}
-            chofer_fila = str(row_lower.get("chofer", "")).strip()
+        # Identificar índices de columnas clave de forma segura
+        # Columna E = Chofer (índice 4), F = Dominio (índice 5), N = Despachar (índice 13), P = Orden (índice 15)
+        idx_chofer = encabezados.index("chofer") if "chofer" in encabezados else 4
+        idx_envio = encabezados.index("envio n°") if "envio n°" in encabezados else (encabezados.index("envio") if "envio" in encabezados else 2)
+        idx_pedido = encabezados.index("pedido n°") if "pedido n°" in encabezados else (encabezados.index("pedido") if "pedido" in encabezados else 3)
+        idx_dominio = encabezados.index("dominio") if "dominio" in encabezados else (encabezados.index("patente") if "patente" in encabezados else 5)
+        idx_destino = encabezados.index("destino") if "destino" in encabezados else 9
+        idx_estado = encabezados.index("estado") if "estado" in encabezados else 7
+        idx_orden = 15 # Columna P (Orden de paradas) -> Índice 15
+
+        for fila in filas[1:]: # Recorremos desde la segunda fila
+            if len(fila) <= max(idx_chofer, idx_dominio):
+                continue
+                
+            chofer_fila = str(fila[idx_chofer]).strip()
             
             if chofer_fila.lower() == chofer.strip().lower():
-                envio = str(row_lower.get("envio n°", row_lower.get("envio", "ENV-000")))
-                pedido = str(row_lower.get("pedido n°", row_lower.get("pedido", "PED-000")))
-                dominio = str(row_lower.get("dominio", row_lower.get("patente", "Sin Asignar")))
-                bultos_raw = row_lower.get("cantidad de bulto", row_lower.get("bultos", 1))
-                bultos = int(bultos_raw) if str(bultos_raw).isdigit() else 1
-                destino = str(row_lower.get("destino", "Sin Destino"))
-                estado = str(row_lower.get("estado", "Pendiente"))
+                envio = str(fila[idx_envio]).strip() if idx_envio < len(fila) else "ENV-000"
+                pedido = str(fila[idx_pedido]).strip() if idx_pedido < len(fila) else "PED-000"
+                dominio = str(fila[idx_dominio]).strip() if idx_dominio < len(fila) else "Sin Asignar"
+                destino = str(fila[idx_destino]).strip() if idx_destino < len(fila) else "Sin Destino"
+                estado = str(fila[idx_estado]).strip() if idx_estado < len(fila) else "Pendiente"
                 
-                # Extraemos el número de orden de la Columna P
+                # Extraer número de orden de la Columna P
                 nro_orden = 99
-                if fila_excel < len(columna_orden) + 1:
-                    val_ord = str(columna_orden[fila_excel - 1]).strip()
+                if idx_orden < len(fila):
+                    val_ord = str(fila[idx_orden]).strip()
                     if val_ord.isdigit():
                         nro_orden = int(val_ord)
 
-                # Asignamos la patente del camión
+                # Asignar patente si está disponible
                 if patente_asignada == "Sin Asignar" and dominio and dominio != "Sin Asignar":
                     patente_asignada = dominio
 
-                # Mostramos el envío si tiene un orden asignado y NO está marcado como Entregado
+                # Filtrar pendientes con orden asignado
                 if nro_orden != 99 and estado.strip().lower() != "entregado":
                     envios_lista.append({
                         "envio": envio, 
                         "pedido": pedido, 
-                        "bultos": bultos,
+                        "bultos": 1, # Valor por defecto seguro
                         "destino": destino, 
                         "dominio": dominio,
                         "orden": nro_orden
                     })
                     
-        # Ordenar la lista según el número de la columna P (1, 2, 3, 4...)
+        # Ordenar según el número de la columna P
         envios_lista = sorted(envios_lista, key=lambda x: x["orden"])
 
     except Exception as e:
