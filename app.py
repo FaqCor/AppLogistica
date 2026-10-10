@@ -462,18 +462,17 @@ else:
                                         break
                                         
                             if fila_encontrada != -1:
-                                # Si existe el envío en la tabla Entregas, actualizamos la Fecha en Columna B (2)
+                                # Si existe el envío en la tabla Entregas, actualizamos los datos
                                 ws_ent.update_cell(fila_encontrada, 2, fecha_cierre_actual)
-                                # Opcional: También podemos actualizar Estado (G), Monto (I) y DNI (K) si lo deseas en su respectiva fila
                                 ws_ent.update_cell(fila_encontrada, 7, estado_entrega)
                                 ws_ent.update_cell(fila_encontrada, 9, monto)
                                 ws_ent.update_cell(fila_encontrada, 11, dni_recibe)
                             else:
-                                # Si no existía, añadimos la fila ubicando Fecha en B, Envío en D, etc.
+                                # Si no existía, añadimos la fila
                                 nueva_fila = ["", fecha_cierre_actual, "", envio_a_actualizar, pedido_n, cant_bultos, estado_entrega, forma_cobro, monto, "", dni_recibe]
                                 ws_ent.append_row(nueva_fila)
-                          
-                        # Actualizar el estado en la solapa Asignación
+                        
+                            # Actualizar el estado en la solapa Asignación (Columna K / 11)
                             ws_asig = sheet.worksheet("Asignación")
                             cell = ws_asig.find(envio_n, in_column=3)
                             if cell:
@@ -485,6 +484,9 @@ else:
                             else:
                                 st.session_state.envio_index = 0
                             st.rerun()
+                            
+                        except Exception as e:
+                            st.error(f"Error al registrar la entrega: {e}")
         # --- MÓDULO 2: CIERRE DE VIAJE ---
         elif st.session_state.menu_activo == "Cierre":
             st.subheader("⚙️ Cierre de Viaje y Rendición")
