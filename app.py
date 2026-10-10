@@ -484,7 +484,7 @@ if st.session_state.menu_activo == "Entregas":
                 except Exception as e:
                     st.error(f"Error al registrar la entrega: {e}")
         # --- MÓDULO 2: CIERRE DE VIAJE ---
-        elif st.session_state.menu_activo == "Cierre":
+        if st.session_state.menu_activo == "Cierre":
             st.subheader("⚙️ Cierre de Viaje y Rendición")
             
             envio_actual_texto = "ENV-000"
