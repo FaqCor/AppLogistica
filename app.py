@@ -136,7 +136,6 @@ def obtener_peso_destino(destino_str):
 
 @st.cache_data(ttl=60, show_spinner=False)
 def cargar_datos_asignacion():
-    """Carga toda la solapa 'Asignación' una sola vez y la guarda en caché por 60 segundos"""
     try:
         ws = sheet.worksheet("Asignación")
         return ws.get_all_values()
@@ -145,7 +144,6 @@ def cargar_datos_asignacion():
 
 @st.cache_data(ttl=60, show_spinner=False)
 def cargar_datos_vehiculos():
-    """Carga toda la solapa de vehículos una sola vez para evitar consultas masivas"""
     try:
         ws_veh = None
         for ws in sheet.worksheets():
@@ -159,7 +157,6 @@ def cargar_datos_vehiculos():
     return []
 
 def obtener_km_actual_vehiculo(patente):
-    """Busca el kilometraje utilizando los datos en caché"""
     if not patente or patente == "Sin Asignar":
         return 0
     try:
@@ -167,9 +164,8 @@ def obtener_km_actual_vehiculo(patente):
         if not filas_veh or len(filas_veh) < 2:
             return 0
             
-        encabezados = [str(h).strip().lower() for h in filas_veh[0]]
-        idx_pat = 1 # Columna B (Patente) por defecto
-        idx_km = 3  # Columna D (Odómetro actual) por defecto
+        idx_pat = 1 # Columna B (Patente)
+        idx_km = 3  # Columna D (Odómetro actual)
         
         patente_clean = patente.strip().upper()
         for fila in filas_veh[1:]:
@@ -184,7 +180,6 @@ def obtener_km_actual_vehiculo(patente):
     return 0
 
 def obtener_asignaciones_chofer(chofer):
-    """Procesa las asignaciones utilizando los datos en caché para evitar el error 429"""
     envios_lista = []
     patente_asignada = "Sin Asignar"
     try:
@@ -192,15 +187,13 @@ def obtener_asignaciones_chofer(chofer):
         if not filas or len(filas) < 2:
             return patente_asignada, envios_lista
 
-        encabezados = [str(h).strip().lower() for h in filas[0]]
-        
         idx_chofer = 4  # Columna E
-        idx_envio = 2   # Columna C (Envío N°)
-        idx_pedido = 3  # Columna D (Pedido N°)
-        idx_dominio = 5 # Columna F (Dominio)
-        idx_destino = 9 # Columna J (Destino aprox)
-        idx_estado = 7  # Columna H (Estado)
-        idx_orden = 15  # Columna P (Orden de paradas)
+        idx_envio = 2   # Columna C
+        idx_pedido = 3  # Columna D
+        idx_dominio = 5 # Columna F
+        idx_destino = 9 # Columna J
+        idx_estado = 7  # Columna H
+        idx_orden = 15  # Columna P
 
         for fila in filas[1:]:
             if len(fila) <= max(idx_chofer, idx_dominio):
@@ -221,10 +214,12 @@ def obtener_asignaciones_chofer(chofer):
                     if val_ord.isdigit():
                         nro_orden = int(val_ord)
 
+                # 1. Asignamos la patente de inmediato al encontrar el dominio en las filas del chofer
                 if patente_asignada == "Sin Asignar" and dominio and dominio != "Sin Asignar":
                     patente_asignada = dominio
 
-                if nro_orden != 99 and estado.strip().lower() != "entregado":
+                # 2. Listamos los envíos pendientes (si tienen orden asignada los prioriza, sino los incluye igual para operar)
+                if estado.strip().lower() != "entregado":
                     envios_lista.append({
                         "envio": envio, 
                         "pedido": pedido, 
@@ -234,6 +229,7 @@ def obtener_asignaciones_chofer(chofer):
                         "orden": nro_orden
                     })
                     
+        # Ordenar según la columna P, dejando los que no tienen orden al final
         envios_lista = sorted(envios_lista, key=lambda x: x["orden"])
 
     except Exception as e:
