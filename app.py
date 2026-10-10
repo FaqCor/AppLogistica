@@ -527,35 +527,78 @@ else:
 
                     except Exception as e:
                         st.error(f"Error al procesar el cierre: {e}")
-        # --- MÓDULO 3: HOJA DE RUTA Y MAPA ---
+        # --- MÓDULO 3: HOJA DE RUTA Y MAPA INTERACTIVO ---
         elif st.session_state.menu_activo == "Ruta":
             st.subheader("🗺️ Hoja de Ruta Óptima")
+            
             if not envios_disponibles:
-                st.info("No hay rutas activas.")
+                st.info("No hay envíos activos asignados.")
             else:
-                envios_ordenados = sorted(envios_disponibles, key=lambda x: obtener_peso_destino(x["destino"]))
-                punto_partida = (-24.7821, -65.4232)
+                # 1. Cargar la lista inicial ordenada según la secuencia guardada en la Hoja de Cálculo
+                if "lista_reordenada" not in st.session_state or st.button("🔄 Restablecer Orden de Google Sheets"):
+                    # Ordenamos por el campo "orden" si existe, o por el peso predeterminado
+                    st.session_state.lista_reordenada = sorted(
+                        envios_disponibles, 
+                        key=lambda x: x.get("orden", 99)
+                    )
+
+                st.markdown("#### 🔄 Reordenar Paradas de Reparto")
+                st.caption("Si necesita cambiar la secuencia, use los botones para mover un envío arriba o abajo:")
+
+                # 2. Permitir al chofer reordenar las paradas
+                lista_temp = list(st.session_state.lista_reordenada)
+                for idx, envio in enumerate(lista_temp):
+                    col_info, col_up, col_down = st.columns([4, 1, 1])
+                    with col_info:
+                        st.markdown(f"**#{idx + 1}** - **{envio['envio']}** | Destino: `{envio['destino']}` (Bultos: {envio['bultos']})")
+                    with col_up:
+                        if idx > 0:
+                            if st.button("⬆️", key=f"up_{idx}"):
+                                lista_temp[idx], lista_temp[idx - 1] = lista_temp[idx - 1], lista_temp[idx]
+                                st.session_state.lista_reordenada = lista_temp
+                                st.rerun()
+                    with col_down:
+                        if idx < len(lista_temp) - 1:
+                            if st.button("⬇️", key=f"down_{idx}"):
+                                lista_temp[idx], lista_temp[idx + 1] = lista_temp[idx + 1], lista_temp[idx]
+                                st.session_state.lista_reordenada = lista_temp
+                                st.rerun()
+
+                st.markdown("---")
+                
+                # 3. Dibujar el mapa con el nuevo orden seleccionado por el chofer
+                st.markdown("### 📍 Trayecto Actualizado")
+                punto_partida = (-24.7821, -65.4232) # Depósito Salta
                 
                 puntos_mapa = []
-                for idx, envio in enumerate(envios_ordenados, start=1):
+                for idx, envio in enumerate(st.session_state.lista_reordenada, start=1):
                     coords = obtener_coordenada(envio["destino"])
-                    puntos_mapa.append({"parada": idx, "envio": envio["envio"], "pedido": envio["pedido"], "destino": envio["destino"], "bultos": envio["bultos"], "coords": coords})
+                    puntos_mapa.append({
+                        "parada": idx, 
+                        "envio": envio["envio"], 
+                        "destino": envio["destino"], 
+                        "coords": coords
+                    })
 
-                for p in puntos_mapa:
-                    st.markdown(f"**Parada #{p['parada']}** ➔ Envío: `{p['envio']}` | Destino: **{p['destino']}** (Bultos: {p['bultos']})")
-                
-                st.markdown("---")
-                mapa_ruta = folium.Map(location=punto_partida, zoom_start=7)
-                folium.Marker(location=punto_partida, popup="Depósito Salta", icon=folium.Icon(color="orange", icon="home")).add_to(mapa_ruta)
-                
+                mapa_ruta = folium.Map(location=punto_partida, zoom_start=8)
+                folium.Marker(
+                    location=punto_partida, 
+                    popup="Depósito Origen", 
+                    icon=folium.Icon(color="orange", icon="home")
+                ).add_to(mapa_ruta)
+
                 polyline_coords = [punto_partida]
                 for p in puntos_mapa:
                     polyline_coords.append(p["coords"])
-                    folium.Marker(location=p["coords"], popup=f"Parada #{p['parada']}: {p['destino']}", icon=folium.Icon(color="green", icon="shopping-cart")).add_to(mapa_ruta)
-                
+                    folium.Marker(
+                        location=p["coords"], 
+                        popup=f"Parada #{p['parada']}: {p['envio']} - {p['destino']}", 
+                        icon=folium.Icon(color="green", icon="shopping-cart")
+                    ).add_to(mapa_ruta)
+
                 if len(polyline_coords) > 1:
-                    folium.PolyLine(polyline_coords, color="green", weight=5, opacity=0.85).add_to(mapa_ruta)
-                
+                    folium.PolyLine(polyline_coords, color="#2563eb", weight=5, opacity=0.85).add_to(mapa_ruta)
+
                 st_folium(mapa_ruta, width=700, height=450)
 
         # --- MÓDULO 4: INCIDENTES ---
