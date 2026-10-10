@@ -421,10 +421,10 @@ else:
 
         # --- MÓDULO 1: ENTREGAS ---
        if st.session_state.menu_activo == "Entregas":
-            st.subheader("📦 Registro de Entregas")
-       if not envios_disponibles:
+        st.subheader("📦 Registro de Entregas")
+        if not envios_disponibles:
             st.success("🎉 No tienes envíos pendientes asignados en este momento.")
-       else:
+        else:
             envio_actual_dict = envios_disponibles[st.session_state.envio_index]
             if len(envios_disponibles) > 1:
                 opciones = [f"{e['envio']} - Pedido: {e['pedido']} ({e['destino']})" for e in envios_disponibles]
