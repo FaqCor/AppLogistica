@@ -157,6 +157,7 @@ def cargar_datos_vehiculos():
     return []
 
 def obtener_km_actual_vehiculo(patente):
+    """Busca el kilometraje actual en la base de datos de vehículos usando las columnas exactas de la planilla"""
     if not patente or patente == "Sin Asignar":
         return 0
     try:
@@ -164,19 +165,24 @@ def obtener_km_actual_vehiculo(patente):
         if not filas_veh or len(filas_veh) < 2:
             return 0
             
-        idx_pat = 1 # Columna B (Patente)
-        idx_km = 3  # Columna D (Odómetro actual)
-        
+        # Según tu estructura visual:
+        # Columna B (índice 1) = Patente
+        # Columna D (índice 3) = Odómetro actual
+        idx_pat = 1 
+        idx_km = 3  
+
         patente_clean = patente.strip().upper()
-        for fila in filas_veh[1:]:
+        
+        for fila in filas_veh[1:]: # Omitimos la fila de encabezados
             if len(fila) > max(idx_pat, idx_km):
                 pat = str(fila[idx_pat]).strip().upper()
                 if pat == patente_clean:
                     val_str = str(fila[idx_km]).replace(".", "").replace(",", "").strip()
                     if val_str.isdigit():
                         return int(val_str)
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"Error al buscar km: {e}")
+        
     return 0
 
 def obtener_asignaciones_chofer(chofer):
