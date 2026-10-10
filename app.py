@@ -494,15 +494,18 @@ else:
                                         val_limpio = str(val_viejo).replace(".", "").replace(",", "").strip()
                                         if val_limpio.isdigit():
                                             km_anterior_capturado = float(val_limpio)
-                                
-                                ws_vehiculos.update_cell(fila_encontrada, 6, val_viejo if val_viejo else 0)
-                                ws_vehiculos.update_cell(fila_encontrada, 4, km_actual_ingresado)
+                                    
+                                    # El valor actual pasa a ser el anterior (Columna F / Col 6)
+                                    ws_vehiculos.update_cell(fila_encontrada, 6, val_viejo if val_viejo else 0)
+                                    # El nuevo valor del chofer se guarda en el actual (Columna D / Col 4)
+                                    ws_vehiculos.update_cell(fila_encontrada, 4, km_actual_ingresado)
                         except Exception as e_veh:
                             st.warning(f"Error en Base Vehículos: {e_veh}")
 
-                        # 3. Registrar en la pestaña "Odometro"
+                        # 3. Registrar en la pestaña "Odometro" bajando a la siguiente fila real
                         try:
                             ws_odometro = sheet.worksheet("Odometro")
+                            
                             columna_dominios = ws_odometro.col_values(3)
                             siguiente_fila = len(columna_dominios) + 1
                             if siguiente_fila < 2:
@@ -510,95 +513,49 @@ else:
                                 
                             fecha_actual_str = datetime.now().strftime("%d/%m/%Y")
                             
-                            ws_odometro.update_cell(siguiente_fila, 1, False)
-                            ws_odometro.update_cell(siguiente_fila, 2, fecha_actual_str)
-                            ws_odometro.update_cell(siguiente_fila, 3, patente_asignada)
-                            ws_odometro.update_cell(siguiente_fila, 4, km_anterior_capturado)
-                            ws_odometro.update_cell(siguiente_fila, 5, km_actual_ingresado)
-                            ws_odometro.update_cell(siguiente_fila, 10, chofer_actual)
+                            ws_odometro.update_cell(siguiente_fila, 1, False)               # Columna A: Checkbox
+                            ws_odometro.update_cell(siguiente_fila, 2, fecha_actual_str)     # Columna B: Fecha
+                            ws_odometro.update_cell(siguiente_fila, 3, patente_asignada)        # Columna C: Dominio
+                            ws_odometro.update_cell(siguiente_fila, 4, km_anterior_capturado)   # Columna D: Km anterior
+                            ws_odometro.update_cell(siguiente_fila, 5, km_actual_ingresado)     # Columna E: Km actual
+                            ws_odometro.update_cell(siguiente_fila, 10, chofer_actual)          # Columna J: Chofer
+
                         except Exception as e_odo:
                             st.warning(f"Nota al actualizar pestaña Odometro: {e_odo}")
 
-                        st.success("¡Cierre de viaje registrado con éxito! Redirigiendo al menú principal...")
-                        
-                        # --- REDIRECCIÓN AUTOMÁTICA AL MENÚ PRINCIPAL ---
-                        st.session_state.menu_activo = "Home"
-                        st.rerun()
+                        st.success("¡Cierre de viaje registrado con éxito!")
 
                     except Exception as e:
                         st.error(f"Error al procesar el cierre: {e}")
-        # --- MÓDULO 3: HOJA DE RUTA Y MAPA INTERACTIVO ---
+        # --- MÓDULO 3: HOJA DE RUTA Y MAPA ---
         elif st.session_state.menu_activo == "Ruta":
             st.subheader("🗺️ Hoja de Ruta Óptima")
-            
             if not envios_disponibles:
-                st.info("No hay envíos activos asignados.")
+                st.info("No hay rutas activas.")
             else:
-                # 1. Cargar la lista inicial ordenada según la secuencia guardada en la Hoja de Cálculo
-                if "lista_reordenada" not in st.session_state or st.button("🔄 Restablecer Orden de Google Sheets"):
-                    # Ordenamos por el campo "orden" si existe, o por el peso predeterminado
-                    st.session_state.lista_reordenada = sorted(
-                        envios_disponibles, 
-                        key=lambda x: x.get("orden", 99)
-                    )
-
-                st.markdown("#### 🔄 Reordenar Paradas de Reparto")
-                st.caption("Si necesita cambiar la secuencia, use los botones para mover un envío arriba o abajo:")
-
-                # 2. Permitir al chofer reordenar las paradas
-                lista_temp = list(st.session_state.lista_reordenada)
-                for idx, envio in enumerate(lista_temp):
-                    col_info, col_up, col_down = st.columns([4, 1, 1])
-                    with col_info:
-                        st.markdown(f"**#{idx + 1}** - **{envio['envio']}** | Destino: `{envio['destino']}` (Bultos: {envio['bultos']})")
-                    with col_up:
-                        if idx > 0:
-                            if st.button("⬆️", key=f"up_{idx}"):
-                                lista_temp[idx], lista_temp[idx - 1] = lista_temp[idx - 1], lista_temp[idx]
-                                st.session_state.lista_reordenada = lista_temp
-                                st.rerun()
-                    with col_down:
-                        if idx < len(lista_temp) - 1:
-                            if st.button("⬇️", key=f"down_{idx}"):
-                                lista_temp[idx], lista_temp[idx + 1] = lista_temp[idx + 1], lista_temp[idx]
-                                st.session_state.lista_reordenada = lista_temp
-                                st.rerun()
-
-                st.markdown("---")
-                
-                # 3. Dibujar el mapa con el nuevo orden seleccionado por el chofer
-                st.markdown("### 📍 Trayecto Actualizado")
-                punto_partida = (-24.7821, -65.4232) # Depósito Salta
+                envios_ordenados = sorted(envios_disponibles, key=lambda x: obtener_peso_destino(x["destino"]))
+                punto_partida = (-24.7821, -65.4232)
                 
                 puntos_mapa = []
-                for idx, envio in enumerate(st.session_state.lista_reordenada, start=1):
+                for idx, envio in enumerate(envios_ordenados, start=1):
                     coords = obtener_coordenada(envio["destino"])
-                    puntos_mapa.append({
-                        "parada": idx, 
-                        "envio": envio["envio"], 
-                        "destino": envio["destino"], 
-                        "coords": coords
-                    })
+                    puntos_mapa.append({"parada": idx, "envio": envio["envio"], "pedido": envio["pedido"], "destino": envio["destino"], "bultos": envio["bultos"], "coords": coords})
 
-                mapa_ruta = folium.Map(location=punto_partida, zoom_start=8)
-                folium.Marker(
-                    location=punto_partida, 
-                    popup="Depósito Origen", 
-                    icon=folium.Icon(color="orange", icon="home")
-                ).add_to(mapa_ruta)
-
+                for p in puntos_mapa:
+                    st.markdown(f"**Parada #{p['parada']}** ➔ Envío: `{p['envio']}` | Destino: **{p['destino']}** (Bultos: {p['bultos']})")
+                
+                st.markdown("---")
+                mapa_ruta = folium.Map(location=punto_partida, zoom_start=7)
+                folium.Marker(location=punto_partida, popup="Depósito Salta", icon=folium.Icon(color="orange", icon="home")).add_to(mapa_ruta)
+                
                 polyline_coords = [punto_partida]
                 for p in puntos_mapa:
                     polyline_coords.append(p["coords"])
-                    folium.Marker(
-                        location=p["coords"], 
-                        popup=f"Parada #{p['parada']}: {p['envio']} - {p['destino']}", 
-                        icon=folium.Icon(color="green", icon="shopping-cart")
-                    ).add_to(mapa_ruta)
-
+                    folium.Marker(location=p["coords"], popup=f"Parada #{p['parada']}: {p['destino']}", icon=folium.Icon(color="green", icon="shopping-cart")).add_to(mapa_ruta)
+                
                 if len(polyline_coords) > 1:
-                    folium.PolyLine(polyline_coords, color="#2563eb", weight=5, opacity=0.85).add_to(mapa_ruta)
-
+                    folium.PolyLine(polyline_coords, color="green", weight=5, opacity=0.85).add_to(mapa_ruta)
+                
                 st_folium(mapa_ruta, width=700, height=450)
 
         # --- MÓDULO 4: INCIDENTES ---
