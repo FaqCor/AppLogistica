@@ -193,13 +193,16 @@ def obtener_asignaciones_chofer(chofer):
         if not filas or len(filas) < 2:
             return patente_asignada, envios_lista
 
+        encabezados = [str(h).strip().lower() for h in filas[0]]
+        
         idx_chofer = 4  # Columna E
-        idx_envio = 2   # Columna C
-        idx_pedido = 3  # Columna D
-        idx_dominio = 5 # Columna F
-        idx_destino = 9 # Columna J
-        idx_estado = 7  # Columna H
-        idx_orden = 15  # Columna P
+        idx_envio = 2   # Columna C (Envío N°)
+        idx_pedido = 3  # Columna D (Pedido N°)
+        idx_dominio = 5 # Columna F (Dominio)
+        idx_destino = 9 # Columna J (Destino)
+        idx_estado = 7  # Columna H (Estado)
+        idx_despachar = 13 # Columna N (¿Despachar?) -> Índice 13
+        idx_orden = 15     # Columna P (Orden de paradas) -> Índice 15
 
         for fila in filas[1:]:
             if len(fila) <= max(idx_chofer, idx_dominio):
@@ -214,18 +217,23 @@ def obtener_asignaciones_chofer(chofer):
                 destino = str(fila[idx_destino]).strip() if idx_destino < len(fila) else "Sin Destino"
                 estado = str(fila[idx_estado]).strip() if idx_estado < len(fila) else "Pendiente"
                 
+                # 1. Verificar si el checkbox de la columna N (¿Despachar?) está marcado (TRUE / VERDADERO / 1 / x)
+                val_despachar = str(fila[idx_despachar]).strip().upper() if idx_despachar < len(fila) else ""
+                is_checked = val_despachar in ["TRUE", "VERDADERO", "1", "X", "YES"]
+
+                # 2. Extraer número de orden de la Columna P
                 nro_orden = 99
                 if idx_orden < len(fila):
                     val_ord = str(fila[idx_orden]).strip()
                     if val_ord.isdigit():
                         nro_orden = int(val_ord)
 
-                # 1. Asignamos la patente de inmediato al encontrar el dominio en las filas del chofer
+                # Asignar patente si está disponible
                 if patente_asignada == "Sin Asignar" and dominio and dominio != "Sin Asignar":
                     patente_asignada = dominio
 
-                # 2. Listamos los envíos pendientes (si tienen orden asignada los prioriza, sino los incluye igual para operar)
-                if estado.strip().lower() != "entregado":
+                # 3. FILTRO ESTRICTO: Debe estar tildado, NO entregado, y tener un orden asignado por Maps
+                if is_checked and nro_orden != 99 and estado.strip().lower() != "entregado":
                     envios_lista.append({
                         "envio": envio, 
                         "pedido": pedido, 
@@ -235,7 +243,7 @@ def obtener_asignaciones_chofer(chofer):
                         "orden": nro_orden
                     })
                     
-        # Ordenar según la columna P, dejando los que no tienen orden al final
+        # Ordenar estrictamente según el número de la columna P (1, 2, 3...)
         envios_lista = sorted(envios_lista, key=lambda x: x["orden"])
 
     except Exception as e:
