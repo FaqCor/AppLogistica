@@ -421,73 +421,68 @@ else:
 
         # --- MÓDULO 1: ENTREGAS ---
        if st.session_state.menu_activo == "Entregas":
-            st.subheader("📦 Registro de Entregas")
-            if not envios_disponibles:
-                st.success("🎉 No tienes envíos pendientes asignados en este momento.")
-            else:
+        st.subheader("📦 Registro de Entregas")
+        if not envios_disponibles:
+            st.success("🎉 No tienes envíos pendientes asignados en este momento.")
+        else:
+            envio_actual_dict = envios_disponibles[st.session_state.envio_index]
+            if len(envios_disponibles) > 1:
+                opciones = [f"{e['envio']} - Pedido: {e['pedido']} ({e['destino']})" for e in envios_disponibles]
+                sel = st.selectbox("Seleccione envío:", opciones, index=st.session_state.envio_index)
+                st.session_state.envio_index = opciones.index(sel)
                 envio_actual_dict = envios_disponibles[st.session_state.envio_index]
-                if len(envios_disponibles) > 1:
-                    opciones = [f"{e['envio']} - Pedido: {e['pedido']} ({e['destino']})" for e in envios_disponibles]
-                    sel = st.selectbox("Seleccione envío:", opciones, index=st.session_state.envio_index)
-                    st.session_state.envio_index = opciones.index(sel)
-                    envio_actual_dict = envios_disponibles[st.session_state.envio_index]
 
-                with st.form("form_entregas_mod"):
-                    envio_n = st.text_input("Envío N°", value=envio_actual_dict["envio"], disabled=True)
-                    pedido_n = st.text_input("Pedido N°", value=envio_actual_dict["pedido"], disabled=True)
-                    patente_s1 = st.text_input("Dominio", value=envio_actual_dict["dominio"], disabled=True)
-                    destino_s1 = st.text_input("Destino", value=envio_actual_dict["destino"], disabled=True)
-                    cant_bultos = st.number_input("Cantidad de bultos", value=envio_actual_dict["bultos"], disabled=True)
-                    
-                    # 1. Ajustamos las opciones del selectbox a los tres estados solicitados
-                    estado_entrega = st.selectbox("Estado", ["Entregado", "No entregado", "Pendiente"])
-                    forma_cobro = st.selectbox("Forma de cobro", ["Efectivo", "Transferencia", "Cheque", "Sin Cobro"])
-                    monto = st.number_input("Monto ($)", min_value=0.0, step=0.01)
-                    dni_recibe = st.text_input("DNI de quien recibe")
-                    
-                    if st.form_submit_button("REGISTRAR Y CERRAR ENTREGA"):
-                        try:
-                            ws_ent = sheet.worksheet("Entregas")
-                            filas_entregas = ws_ent.get_all_values()
-                            
-                            fecha_cierre_actual = datetime.now().strftime("%d/%m/%Y")
-                            envio_a_actualizar = str(envio_n).strip().upper()
-                            
-                            fila_encontrada = -1
-                            # Buscamos en la pestaña Entregas el Envío N° en la Columna D (índice 3)
-                            for idx, fila in enumerate(filas_entregas[1:], start=2):
-                                if len(fila) > 3:
-                                    envio_en_fila = str(fila[3]).strip().upper()
-                                    if envio_en_fila == envio_a_actualizar:
-                                        fila_encontrada = idx
-                                        break
-                                        
-                            if fila_encontrada != -1:
-                                # Si existe el envío en la tabla Entregas, actualizamos los datos
-                                ws_ent.update_cell(fila_encontrada, 2, fecha_cierre_actual)
-                                ws_ent.update_cell(fila_encontrada, 7, estado_entrega)
-                                ws_ent.update_cell(fila_encontrada, 9, monto)
-                                ws_ent.update_cell(fila_encontrada, 11, dni_recibe)
-                            else:
-                                # Si no existía, añadimos la fila
-                                nueva_fila = ["", fecha_cierre_actual, "", envio_a_actualizar, pedido_n, cant_bultos, estado_entrega, forma_cobro, monto, "", dni_recibe]
-                                ws_ent.append_row(nueva_fila)
+            with st.form("form_entregas_mod"):
+                envio_n = st.text_input("Envío N°", value=envio_actual_dict["envio"], disabled=True)
+                pedido_n = st.text_input("Pedido N°", value=envio_actual_dict["pedido"], disabled=True)
+                patente_s1 = st.text_input("Dominio", value=envio_actual_dict["dominio"], disabled=True)
+                destino_s1 = st.text_input("Destino", value=envio_actual_dict["destino"], disabled=True)
+                cant_bultos = st.number_input("Cantidad de bultos", value=envio_actual_dict["bultos"], disabled=True)
+                
+                estado_entrega = st.selectbox("Estado", ["Entregado", "No entregado", "Pendiente"])
+                forma_cobro = st.selectbox("Forma de cobro", ["Efectivo", "Transferencia", "Cheque", "Sin Cobro"])
+                monto = st.number_input("Monto ($)", min_value=0.0, step=0.01)
+                dni_recibe = st.text_input("DNI de quien recibe")
+                
+                if st.form_submit_button("REGISTRAR Y CERRAR ENTREGA"):
+                    try:
+                        ws_ent = sheet.worksheet("Entregas")
+                        filas_entregas = ws_ent.get_all_values()
                         
-                            # 2. Actualizar el estado directamente en la solapa Asignación (Columna K / 11)
-                            ws_asig = sheet.worksheet("Asignación")
-                            cell = ws_asig.find(envio_n, in_column=3)
-                            if cell:
-                                ws_asig.update_cell(cell.row, 11, estado_entrega)
+                        fecha_cierre_actual = datetime.now().strftime("%d/%m/%Y")
+                        envio_a_actualizar = str(envio_n).strip().upper()
+                        
+                        fila_encontrada = -1
+                        for idx, fila in enumerate(filas_entregas[1:], start=2):
+                            if len(fila) > 3:
+                                envio_en_fila = str(fila[3]).strip().upper()
+                                if envio_en_fila == envio_a_actualizar:
+                                    fila_encontrada = idx
+                                    break
+                                    
+                        if fila_encontrada != -1:
+                            ws_ent.update_cell(fila_encontrada, 2, fecha_cierre_actual)
+                            ws_ent.update_cell(fila_encontrada, 7, estado_entrega)
+                            ws_ent.update_cell(fila_encontrada, 9, monto)
+                            ws_ent.update_cell(fila_encontrada, 11, dni_recibe)
+                        else:
+                            nueva_fila = ["", fecha_cierre_actual, "", envio_a_actualizar, pedido_n, cant_bultos, estado_entrega, forma_cobro, monto, "", dni_recibe]
+                            ws_ent.append_row(nueva_fila)
+                    
+                        ws_asig = sheet.worksheet("Asignación")
+                        cell = ws_asig.find(envio_n, in_column=3)
+                        if cell:
+                            ws_asig.update_cell(cell.row, 11, estado_entrega)
 
-                            st.success(f"¡Pedido {envio_a_actualizar} cerrado y registrado con éxito!")
-                            if st.session_state.envio_index < len(envios_disponibles) - 1:
-                                st.session_state.envio_index += 1
-                            else:
-                                st.session_state.envio_index = 0
-                            st.rerun()
-                            
-                        except Exception as e:
-                            st.error(f"Error al registrar la entrega: {e}")
+                        st.success(f"¡Pedido {envio_a_actualizar} cerrado y registrado con éxito!")
+                        if st.session_state.envio_index < len(envios_disponibles) - 1:
+                            st.session_state.envio_index += 1
+                        else:
+                            st.session_state.envio_index = 0
+                        st.rerun()
+                        
+                    except Exception as e:
+                        st.error(f"Error al registrar la entrega: {e}")
         # --- MÓDULO 2: CIERRE DE VIAJE ---
         elif st.session_state.menu_activo == "Cierre":
             st.subheader("⚙️ Cierre de Viaje y Rendición")
