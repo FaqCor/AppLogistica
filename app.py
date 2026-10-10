@@ -165,15 +165,12 @@ def obtener_km_actual_vehiculo(patente):
         if not filas_veh or len(filas_veh) < 2:
             return 0
             
-        # Según tu estructura visual:
-        # Columna B (índice 1) = Patente
-        # Columna D (índice 3) = Odómetro actual
         idx_pat = 1 
         idx_km = 3  
 
         patente_clean = patente.strip().upper()
         
-        for fila in filas_veh[1:]: # Omitimos la fila de encabezados
+        for fila in filas_veh[1:]:
             if len(fila) > max(idx_pat, idx_km):
                 pat = str(fila[idx_pat]).strip().upper()
                 if pat == patente_clean:
@@ -217,22 +214,18 @@ def obtener_asignaciones_chofer(chofer):
                 destino = str(fila[idx_destino]).strip() if idx_destino < len(fila) else "Sin Destino"
                 estado = str(fila[idx_estado]).strip() if idx_estado < len(fila) else "Pendiente"
                 
-                # 1. Verificar si el checkbox de la columna N (¿Despachar?) está marcado (TRUE / VERDADERO / 1 / x)
                 val_despachar = str(fila[idx_despachar]).strip().upper() if idx_despachar < len(fila) else ""
                 is_checked = val_despachar in ["TRUE", "VERDADERO", "1", "X", "YES"]
 
-                # 2. Extraer número de orden de la Columna P
                 nro_orden = 99
                 if idx_orden < len(fila):
                     val_ord = str(fila[idx_orden]).strip()
                     if val_ord.isdigit():
                         nro_orden = int(val_ord)
 
-                # Asignar patente si está disponible
                 if patente_asignada == "Sin Asignar" and dominio and dominio != "Sin Asignar":
                     patente_asignada = dominio
 
-                # 3. FILTRO ESTRICTO: Debe estar tildado, NO entregado, y tener un orden asignado por Maps
                 if is_checked and nro_orden != 99 and estado.strip().lower() != "entregado":
                     envios_lista.append({
                         "envio": envio, 
@@ -243,13 +236,13 @@ def obtener_asignaciones_chofer(chofer):
                         "orden": nro_orden
                     })
                     
-        # Ordenar estrictamente según el número de la columna P (1, 2, 3...)
         envios_lista = sorted(envios_lista, key=lambda x: x["orden"])
 
     except Exception as e:
         st.error(f"Error al leer la solapa Asignación: {e}")
         
     return patente_asignada, envios_lista
+
 # --- 6. AUTENTICACIÓN Y PANEL DE LOGÍSTICA ---
 st.markdown("<h1 style='text-align: center; margin-bottom: 5px;'>🚚 DM MAESTRO S.R.L. </h1>", unsafe_allow_html=True)
 st.markdown("<p style='text-align: center; color: #94a3b8; margin-bottom: 25px;'>Sistema de Flota y Logística</p>", unsafe_allow_html=True)
@@ -277,7 +270,7 @@ if es_encargado:
         if st.button("💾 Guardar Cambios y Actualizar Odómetros"):
             actualizaciones = 0
             for index, row in df_editado.iterrows():
-                fila_excel = index + 4  # Ajustado a tu estructura donde los datos arrancan en la fila 4
+                fila_excel = index + 4  
                 
                 km_actual_en_sheet = ws_vehiculos.cell(fila_excel, 4).value
                 km_nuevo_modificado = row["Odómetro actual (km/horas)"]
@@ -360,7 +353,6 @@ if not st.session_state.checklist_realizado:
             neumaticos = st.checkbox("Presión y estado de neumáticos")
             luces = st.checkbox("Luces altas, bajas y guiños")
         with col2:
-            # Kilometraje extraído automáticamente de la base y bloqueado de edición
             kilometraje = st.number_input("Kilometraje Actual de Salida (Km)", value=km_inicial_sugerido, disabled=True)
             frenos = st.checkbox("Liquido de Freno")
             fluidos = st.checkbox("Niveles de agua y aceite")
@@ -447,33 +439,57 @@ else:
                     destino_s1 = st.text_input("Destino", value=envio_actual_dict["destino"], disabled=True)
                     cant_bultos = st.number_input("Cantidad de bultos", value=envio_actual_dict["bultos"], disabled=True)
                     
-                    estado_entrega = st.selectbox("Estado", ["ENTREGADO", "NO ENTREGADO"])
+                    estado_entrega = st.selectbox("Estado", ["ENTREGADO", "NO ENTREGADO", "PASÓ A COBRAR"])
                     forma_cobro = st.selectbox("Forma de cobro", ["Efectivo", "Transferencia", "Cheque", "Sin Cobro"])
                     monto = st.number_input("Monto ($)", min_value=0.0, step=0.01)
+                    dni_recibe = st.text_input("DNI de quien recibe")
                     
-                    if st.form_submit_button("REGISTRAR ENTREGA"):
+                    if st.form_submit_button("REGISTRAR Y CERRAR ENTREGA"):
                         try:
                             ws_ent = sheet.worksheet("Entregas")
-                        except:
-                            ws_ent = sheet.add_worksheet(title="Entregas", rows=100, cols=10)
-                            ws_ent.append_row(["Fecha", "Envio N°", "Pedido N°", "Cantidad de bultos", "Estado", "Forma de cobro", "Monto"])
-                        
-                        ws_ent.append_row([datetime.now().strftime("%Y-%m-%d %H:%M"), envio_n, pedido_n, cant_bultos, estado_entrega, forma_cobro, monto])
-                        
-                        try:
-                            ws_asig = sheet.worksheet("Asignación")
-                            cell = ws_asig.find(envio_n)
-                            if cell:
-                                ws_asig.update_cell(cell.row, 8, estado_entrega)
-                        except Exception:
-                            pass
+                            filas_entregas = ws_ent.get_all_values()
+                            
+                            fecha_cierre_actual = datetime.now().strftime("%d/%m/%Y")
+                            envio_a_actualizar = str(envio_n).strip().upper()
+                            
+                            fila_encontrada = -1
+                            # Buscamos en la pestaña Entregas el Envío N° en la Columna D (índice 3)
+                            for idx, fila in enumerate(filas_entregas[1:], start=2):
+                                if len(fila) > 3:
+                                    envio_en_fila = str(fila[3]).strip().upper()
+                                    if envio_en_fila == envio_a_actualizar:
+                                        fila_encontrada = idx
+                                        break
+                                        
+                            if fila_encontrada != -1:
+                                # Si existe el envío en la tabla Entregas, actualizamos la Fecha en Columna B (2)
+                                ws_ent.update_cell(fila_encontrada, 2, fecha_cierre_actual)
+                                # Opcional: También podemos actualizar Estado (G), Monto (I) y DNI (K) si lo deseas en su respectiva fila
+                                ws_ent.update_cell(fila_encontrada, 7, estado_entrega)
+                                ws_ent.update_cell(fila_encontrada, 9, monto)
+                                ws_ent.update_cell(fila_encontrada, 11, dni_recibe)
+                            else:
+                                # Si no existía, añadimos la fila ubicando Fecha en B, Envío en D, etc.
+                                nueva_fila = ["", fecha_cierre_actual, "", envio_a_actualizar, pedido_n, cant_bultos, estado_entrega, forma_cobro, monto, "", dni_recibe]
+                                ws_ent.append_row(nueva_fila)
 
-                        st.success("¡Entrega registrada con éxito!")
-                        if st.session_state.envio_index < len(envios_disponibles) - 1:
-                            st.session_state.envio_index += 1
-                        else:
-                            st.session_state.envio_index = 0
-                        st.rerun()
+                            # Actualizar el estado en la solapa Asignación
+                            try:
+                                ws_asig = sheet.worksheet("Asignación")
+                                cell = ws_asig.find(envio_n)
+                                if cell:
+                                    ws_asig.update_cell(cell.row, 8, estado_entrega)
+                            except Exception:
+                                pass
+
+                            st.success(f"¡Pedido {envio_a_actualizar} cerrado y registrado con éxito!")
+                            if st.session_state.envio_index < len(envios_disponibles) - 1:
+                                st.session_state.envio_index += 1
+                            else:
+                                st.session_state.envio_index = 0
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Error al registrar la entrega: {e}")
 
         # --- MÓDULO 2: CIERRE DE VIAJE ---
         elif st.session_state.menu_activo == "Cierre":
@@ -493,7 +509,6 @@ else:
                 
                 if st.form_submit_button("FINALIZAR Y ENVIAR CIERRE"):
                     try:
-                        # 1. Guardar en la solapa Cierres (Histórico de app)
                         try:
                             ws_cierres = sheet.worksheet("Cierres")
                         except Exception:
@@ -507,7 +522,6 @@ else:
 
                         km_anterior_capturado = 0
                         
-                        # 2. Actualizar la Base de datos VEHICULOS
                         try:
                             ws_vehiculos = None
                             for ws in sheet.worksheets():
@@ -531,18 +545,14 @@ else:
                                         val_limpio = str(val_viejo).replace(".", "").replace(",", "").strip()
                                         if val_limpio.isdigit():
                                             km_anterior_capturado = float(val_limpio)
-                                    
-                                    # El valor actual pasa a ser el anterior (Columna F / Col 6)
+                                
                                     ws_vehiculos.update_cell(fila_encontrada, 6, val_viejo if val_viejo else 0)
-                                    # El nuevo valor del chofer se guarda en el actual (Columna D / Col 4)
                                     ws_vehiculos.update_cell(fila_encontrada, 4, km_actual_ingresado)
                         except Exception as e_veh:
                             st.warning(f"Error en Base Vehículos: {e_veh}")
 
-                        # 3. Registrar en la pestaña "Odometro" bajando a la siguiente fila real
                         try:
                             ws_odometro = sheet.worksheet("Odometro")
-                            
                             columna_dominios = ws_odometro.col_values(3)
                             siguiente_fila = len(columna_dominios) + 1
                             if siguiente_fila < 2:
@@ -551,7 +561,7 @@ else:
                             fecha_actual_str = datetime.now().strftime("%d/%m/%Y")
                             
                             ws_odometro.update_cell(siguiente_fila, 1, False)               # Columna A: Checkbox
-                            ws_odometro.update_cell(siguiente_fila, 2, fecha_actual_str)     # Columna B: Fecha
+                            ws_odometro.update_cell(siguiente_fila, 2, fecha_actual_str)      # Columna B: Fecha
                             ws_odometro.update_cell(siguiente_fila, 3, patente_asignada)        # Columna C: Dominio
                             ws_odometro.update_cell(siguiente_fila, 4, km_anterior_capturado)   # Columna D: Km anterior
                             ws_odometro.update_cell(siguiente_fila, 5, km_actual_ingresado)     # Columna E: Km actual
@@ -564,6 +574,7 @@ else:
 
                     except Exception as e:
                         st.error(f"Error al procesar el cierre: {e}")
+
         # --- MÓDULO 3: HOJA DE RUTA Y MAPA ---
         elif st.session_state.menu_activo == "Ruta":
             st.subheader("🗺️ Hoja de Ruta Óptima")
@@ -651,11 +662,21 @@ else:
             st.markdown(f"""
                 <div class='orion-card'>
                     <h4>Unidad Asignada: <b>{patente_asignada}</b></h4>
-                    <p style='color:#94a3b8;'>Estado general del vehículo registrado en el último checklist diario.</p>
-                    <hr style='border-color: rgba(255,255,255,0.1);'>
-                    <p>✅ <b>Neumáticos:</b> OK</p>
-                    <p>✅ <b>Sistema eléctrico y luces:</b> OK</p>
-                    <p>✅ <b>Frenos y fluidos:</b> OK</p>
+                    <p>Utilice este módulo únicamente si detecta una anomalía mecánica que requiera intervención inmediata del taller.</p>
                 </div>
             """, unsafe_allow_html=True)
-            st.info("Si detecta alguna anomalía mecánica nueva durante su recorrido, repórtela inmediatamente desde el módulo de **Incidentes**.")
+            with st.form("form_mecanica"):
+                tipo_falla = st.selectbox("Sistema afectado", ["Motor", "Frenos", "Suspensión", "Transmisión", "Eléctrico", "Neumáticos"])
+                desc_falla = st.text_area("Describa la falla detectada")
+                if st.form_submit_button("REPORTAR FALLA TÉCNICA"):
+                    if desc_falla:
+                        try:
+                            ws_mec = sheet.worksheet("Mecanica")
+                        except:
+                            ws_mec = sheet.add_worksheet(title="Mecanica", rows=100, cols=10)
+                            ws_mec.append_row(["Fecha", "Chofer", "Patente", "Sistema", "Descripcion"])
+                        
+                        ws_mec.append_row([datetime.now().strftime("%Y-%m-%d %H:%M"), chofer_actual, patente_asignada, tipo_falla, desc_falla])
+                        st.success("🛠️ Falla reportada al área de mecánica con éxito.")
+                    else:
+                        st.warning("Por favor, ingrese una descripción de la falla.")
