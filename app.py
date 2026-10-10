@@ -170,6 +170,7 @@ def obtener_asignaciones_chofer(chofer):
         ws = sheet.worksheet("Asignación")
         registros = ws.get_all_records()
         columna_despachar = ws.col_values(14) # Columna N (¿Despachar?)
+        columna_orden = ws.col_values(16)     # Columna P (Orden de paradas)
         
         for idx, row in enumerate(registros):
             fila_excel = idx + 2 
@@ -185,11 +186,18 @@ def obtener_asignaciones_chofer(chofer):
                 destino = str(row_lower.get("destino", "Sin Destino"))
                 estado = str(row_lower.get("estado", "Pendiente"))
                 
-                # 1. Asignamos la patente apenas encontramos una fila del chofer con dominio válido
+                # Extraemos el número de orden de la Columna P si está disponible
+                nro_orden = 99
+                if fila_excel < len(columna_orden) + 1:
+                    val_ord = str(columna_orden[fila_excel - 1]).strip()
+                    if val_ord.isdigit():
+                        nro_orden = int(val_ord)
+
+                # Asignamos la patente
                 if patente_asignada == "Sin Asignar" and dominio and dominio != "Sin Asignar":
                     patente_asignada = dominio
 
-                # 2. Verificamos el check de la columna N solo para listar los envíos operativos
+                # Verificamos el check de la columna N
                 is_checked = False
                 if fila_excel < len(columna_despachar) + 1:
                     val_check = str(columna_despachar[fila_excel - 1]).strip().upper()
@@ -202,8 +210,13 @@ def obtener_asignaciones_chofer(chofer):
                         "pedido": pedido, 
                         "bultos": bultos,
                         "destino": destino, 
-                        "dominio": dominio
+                        "dominio": dominio,
+                        "orden": nro_orden
                     })
+                    
+        # Ordenar la lista de envíos según el número de la columna P de menor a mayor (1, 2, 3, 4...)
+        envios_lista = sorted(envios_lista, key=lambda x: x["orden"])
+
     except Exception as e:
         st.error(f"Error al leer la solapa Asignación: {e}")
         
