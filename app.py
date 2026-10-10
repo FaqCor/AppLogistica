@@ -169,7 +169,6 @@ def obtener_asignaciones_chofer(chofer):
     try:
         ws = sheet.worksheet("Asignación")
         registros = ws.get_all_records()
-        columna_despachar = ws.col_values(14) # Columna N (¿Despachar?)
         columna_orden = ws.col_values(16)     # Columna P (Orden de paradas)
         
         for idx, row in enumerate(registros):
@@ -186,25 +185,19 @@ def obtener_asignaciones_chofer(chofer):
                 destino = str(row_lower.get("destino", "Sin Destino"))
                 estado = str(row_lower.get("estado", "Pendiente"))
                 
-                # Extraemos el número de orden de la Columna P si está disponible
+                # Extraemos el número de orden de la Columna P
                 nro_orden = 99
                 if fila_excel < len(columna_orden) + 1:
                     val_ord = str(columna_orden[fila_excel - 1]).strip()
                     if val_ord.isdigit():
                         nro_orden = int(val_ord)
 
-                # Asignamos la patente
+                # Asignamos la patente del camión
                 if patente_asignada == "Sin Asignar" and dominio and dominio != "Sin Asignar":
                     patente_asignada = dominio
 
-                # Verificamos el check de la columna N
-                is_checked = False
-                if fila_excel < len(columna_despachar) + 1:
-                    val_check = str(columna_despachar[fila_excel - 1]).strip().upper()
-                    if val_check == "TRUE" or val_check == "VERDADERO" or val_check == "1":
-                        is_checked = True
-
-                if is_checked and estado.strip().lower() != "entregado":
+                # Mostramos el envío si tiene un orden asignado y NO está marcado como Entregado
+                if nro_orden != 99 and estado.strip().lower() != "entregado":
                     envios_lista.append({
                         "envio": envio, 
                         "pedido": pedido, 
@@ -214,7 +207,7 @@ def obtener_asignaciones_chofer(chofer):
                         "orden": nro_orden
                     })
                     
-        # Ordenar la lista de envíos según el número de la columna P de menor a mayor (1, 2, 3, 4...)
+        # Ordenar la lista según el número de la columna P (1, 2, 3, 4...)
         envios_lista = sorted(envios_lista, key=lambda x: x["orden"])
 
     except Exception as e:
