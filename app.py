@@ -420,7 +420,7 @@ else:
         st.markdown("---")
 
         # --- MÓDULO 1: ENTREGAS ---
-        if st.session_state.menu_activo == "Entregas":
+       if st.session_state.menu_activo == "Entregas":
             st.subheader("📦 Registro de Entregas")
             if not envios_disponibles:
                 st.success("🎉 No tienes envíos pendientes asignados en este momento.")
@@ -439,7 +439,8 @@ else:
                     destino_s1 = st.text_input("Destino", value=envio_actual_dict["destino"], disabled=True)
                     cant_bultos = st.number_input("Cantidad de bultos", value=envio_actual_dict["bultos"], disabled=True)
                     
-                    estado_entrega = st.selectbox("Estado", ["ENTREGADO", "NO ENTREGADO", "PASÓ A COBRAR"])
+                    # 1. Ajustamos las opciones del selectbox a los tres estados solicitados
+                    estado_entrega = st.selectbox("Estado", ["Entregado", "No entregado", "Pendiente"])
                     forma_cobro = st.selectbox("Forma de cobro", ["Efectivo", "Transferencia", "Cheque", "Sin Cobro"])
                     monto = st.number_input("Monto ($)", min_value=0.0, step=0.01)
                     dni_recibe = st.text_input("DNI de quien recibe")
@@ -472,7 +473,7 @@ else:
                                 nueva_fila = ["", fecha_cierre_actual, "", envio_a_actualizar, pedido_n, cant_bultos, estado_entrega, forma_cobro, monto, "", dni_recibe]
                                 ws_ent.append_row(nueva_fila)
                         
-                            # Actualizar el estado en la solapa Asignación (Columna K / 11)
+                            # 2. Actualizar el estado directamente en la solapa Asignación (Columna K / 11)
                             ws_asig = sheet.worksheet("Asignación")
                             cell = ws_asig.find(envio_n, in_column=3)
                             if cell:
