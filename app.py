@@ -494,18 +494,15 @@ else:
                                         val_limpio = str(val_viejo).replace(".", "").replace(",", "").strip()
                                         if val_limpio.isdigit():
                                             km_anterior_capturado = float(val_limpio)
-                                    
-                                    # El valor actual pasa a ser el anterior (Columna F / Col 6)
-                                    ws_vehiculos.update_cell(fila_encontrada, 6, val_viejo if val_viejo else 0)
-                                    # El nuevo valor del chofer se guarda en el actual (Columna D / Col 4)
-                                    ws_vehiculos.update_cell(fila_encontrada, 4, km_actual_ingresado)
+                                
+                                ws_vehiculos.update_cell(fila_encontrada, 6, val_viejo if val_viejo else 0)
+                                ws_vehiculos.update_cell(fila_encontrada, 4, km_actual_ingresado)
                         except Exception as e_veh:
                             st.warning(f"Error en Base Vehículos: {e_veh}")
 
-                        # 3. Registrar en la pestaña "Odometro" bajando a la siguiente fila real
+                        # 3. Registrar en la pestaña "Odometro"
                         try:
                             ws_odometro = sheet.worksheet("Odometro")
-                            
                             columna_dominios = ws_odometro.col_values(3)
                             siguiente_fila = len(columna_dominios) + 1
                             if siguiente_fila < 2:
@@ -513,17 +510,20 @@ else:
                                 
                             fecha_actual_str = datetime.now().strftime("%d/%m/%Y")
                             
-                            ws_odometro.update_cell(siguiente_fila, 1, False)               # Columna A: Checkbox
-                            ws_odometro.update_cell(siguiente_fila, 2, fecha_actual_str)     # Columna B: Fecha
-                            ws_odometro.update_cell(siguiente_fila, 3, patente_asignada)        # Columna C: Dominio
-                            ws_odometro.update_cell(siguiente_fila, 4, km_anterior_capturado)   # Columna D: Km anterior
-                            ws_odometro.update_cell(siguiente_fila, 5, km_actual_ingresado)     # Columna E: Km actual
-                            ws_odometro.update_cell(siguiente_fila, 10, chofer_actual)          # Columna J: Chofer
-
+                            ws_odometro.update_cell(siguiente_fila, 1, False)
+                            ws_odometro.update_cell(siguiente_fila, 2, fecha_actual_str)
+                            ws_odometro.update_cell(siguiente_fila, 3, patente_asignada)
+                            ws_odometro.update_cell(siguiente_fila, 4, km_anterior_capturado)
+                            ws_odometro.update_cell(siguiente_fila, 5, km_actual_ingresado)
+                            ws_odometro.update_cell(siguiente_fila, 10, chofer_actual)
                         except Exception as e_odo:
                             st.warning(f"Nota al actualizar pestaña Odometro: {e_odo}")
 
-                        st.success("¡Cierre de viaje registrado con éxito!")
+                        st.success("¡Cierre de viaje registrado con éxito! Redirigiendo al menú principal...")
+                        
+                        # --- REDIRECCIÓN AUTOMÁTICA AL MENÚ PRINCIPAL ---
+                        st.session_state.menu_activo = "Home"
+                        st.rerun()
 
                     except Exception as e:
                         st.error(f"Error al procesar el cierre: {e}")
