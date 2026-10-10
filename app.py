@@ -227,7 +227,6 @@ def obtener_asignaciones_chofer(chofer):
                     patente_asignada = dominio
 
                if is_checked and nro_orden != 99 and estado.strip().lower() != "entregado":
-                    # Obtenemos los bultos de la columna G (índice 6), validando que sea un número válido
                     val_bultos = str(fila[6]).replace(".", "").replace(",", "").strip() if len(fila) > 6 else "1"
                     cant_bultos = int(val_bultos) if val_bultos.isdigit() else 1
 
