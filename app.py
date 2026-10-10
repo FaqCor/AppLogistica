@@ -168,35 +168,46 @@ def obtener_asignaciones_chofer(chofer):
     patente_asignada = "Sin Asignar"
     try:
         ws = sheet.worksheet("Asignación")
+        # Obtenemos los registros con valores y además las celdas brutas para validar el checkbox de la columna N
         registros = ws.get_all_records()
+        
+        # Leemos también los valores de la columna N (columna 14) para saber cuáles tienen el tilde real
+        columna_despachar = ws.col_values(14) # Asumiendo que '¿Despachar?' está en la columna 14 (N)
+        
         for idx, row in enumerate(registros):
+            fila_excel = idx + 2 # Considerando que los datos arrancan en la fila 2
             row_lower = {str(k).strip().lower(): v for k, v in row.items()}
             chofer_fila = str(row_lower.get("chofer", "")).strip()
             
             if chofer_fila.lower() == chofer.strip().lower():
-                envio = str(row_lower.get("envio n°", row_lower.get("envio", "ENV-000")))
-                pedido = str(row_lower.get("pedido n°", row_lower.get("pedido", "PED-000")))
-                
-                # Capturamos el dominio específico de ESTA fila (columna Dominio)
-                dominio = str(row_lower.get("dominio", row_lower.get("patente", "Sin Asignar")))
-                
-                bultos_raw = row_lower.get("cantidad de bulto", row_lower.get("bultos", 1))
-                bultos = int(bultos_raw) if str(bultos_raw).isdigit() else 1
-                destino = str(row_lower.get("destino", "Sin Destino"))
-                estado = str(row_lower.get("estado", "Pendiente"))
-                
-                if estado.strip().lower() != "entregado":
-                    # Si aún no tiene patente predeterminada, tomamos la primera activa
-                    if patente_asignada == "Sin Asignar" and dominio and dominio != "Sin Asignar":
-                        patente_asignada = dominio
-                        
-                    envios_lista.append({
-                        "envio": envio, 
-                        "pedido": pedido, 
-                        "bultos": bultos,
-                        "destino": destino, 
-                        "dominio": dominio  # <--- Cada envío guarda su propio dominio exacto
-                    })
+                # Verificamos si el checkbox de la columna N está marcado en esta fila específica
+                is_checked = False
+                if fila_excel < len(columna_despachar) + 1:
+                    val_check = str(columna_despachar[fila_excel - 1]).strip().upper()
+                    if val_check == "TRUE" or val_check == "VERDADERO" or val_check == "1":
+                        is_checked = True
+
+                # Solo procesamos el envío si el check está marcado
+                if is_checked:
+                    envio = str(row_lower.get("envio n°", row_lower.get("envio", "ENV-000")))
+                    pedido = str(row_lower.get("pedido n°", row_lower.get("pedido", "PED-000")))
+                    dominio = str(row_lower.get("dominio", row_lower.get("patente", "Sin Asignar")))
+                    bultos_raw = row_lower.get("cantidad de bulto", row_lower.get("bultos", 1))
+                    bultos = int(bultos_raw) if str(bultos_raw).isdigit() else 1
+                    destino = str(row_lower.get("destino", "Sin Destino"))
+                    estado = str(row_lower.get("estado", "Pendiente"))
+                    
+                    if estado.strip().lower() != "entregado":
+                        if dominio and dominio != "Sin Asignar":
+                            patente_asignada = dominio # Toma el dominio del envío marcado
+                            
+                        envios_lista.append({
+                            "envio": envio, 
+                            "pedido": pedido, 
+                            "bultos": bultos,
+                            "destino": destino, 
+                            "dominio": dominio
+                        })
     except Exception as e:
         st.error(f"Error al leer la solapa Asignación: {e}")
         
