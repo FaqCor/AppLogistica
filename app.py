@@ -572,7 +572,7 @@ if st.session_state.menu_activo == "Entregas":
                         st.error(f"Error al procesar el cierre: {e}")
         # --- MÓDULO 3: HOJA DE RUTA Y MAPA ---
             if st.session_state.menu_activo == "Ruta":
-            st.subheader("🗺️ Hoja de Ruta Óptima")
+                st.subheader("🗺️ Hoja de Ruta Óptima")
             if not envios_disponibles:
                 st.info("No hay rutas activas.")
             else:
