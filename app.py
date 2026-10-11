@@ -421,19 +421,7 @@ else:
             st.rerun()
         st.markdown("---")
 
-       # --- CONTROL DE NAVEGACIÓN Y MÓDULOS ---
-if st.session_state.menu_activo == "Home":
-    # (Tu panel principal con tarjetas y botones)
-    pass
-
-else:
-    # Botón global de retorno al menú principal
-    if st.button("⬅️ VOLVER AL MENÚ PRINCIPAL"):
-        st.session_state.menu_activo = "Home"
-        st.rerun()
-    st.markdown("---")
-
-    # --- MÓDULO 1: ENTREGAS ---
+   # --- MÓDULO 1: ENTREGAS ---
     if st.session_state.menu_activo == "Entregas":
         st.subheader("📦 Registro de Entregas")
         if not envios_disponibles:
