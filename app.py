@@ -488,7 +488,7 @@ if st.session_state.menu_activo == "Entregas":
 
            # --- MÓDULO 2: CIERRE DE VIAJE ---
             if st.session_state.menu_activo == "Cierre":
-            st.subheader("⚙️ Cierre de Viaje y Rendición")
+             st.subheader("⚙️ Cierre de Viaje y Rendición")
             
             envio_actual_texto = "ENV-000"
             if envios_disponibles and len(envios_disponibles) > 0:
