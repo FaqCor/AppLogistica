@@ -602,7 +602,7 @@ if st.session_state.menu_activo == "Entregas":
                 st_folium(mapa_ruta, width=700, height=450)
 
         # --- MÓDULO 4: INCIDENTES ---
-        elif st.session_state.menu_activo == "Incidentes":
+        if st.session_state.menu_activo == "Incidentes":
             st.subheader("⚠ Reporte de Novedades e Incidentes")
             with st.form("form_inc_mod"):
                 id_viaje = st.text_input("Número de Viaje / ID")
