@@ -687,26 +687,26 @@ else:
                         "Otros", "Sin Comprobante", "Total Diario"
                     ])
 
-                # Inserción de la fila con los valores registrados
+            # Inserción de la fila con el orden exacto de las columnas
                 ws_viat.append_row([
-                    datetime.now().strftime("%Y-%m-%d %H:%M"),
-                    chofer_actual,
-                    patente_asignada,
-                    viaje_v,
-                    dia_viaje,
-                    MONTO_VIATICO_ASIGNADO,
-                    desayuno,
-                    almuerzo,
-                    merienda,
-                    cena,
-                    urea,
-                    hotel,
-                    imp_municipal,
-                    remis,
-                    mantenimiento,
-                    otros,
-                    sin_comprobante,
-                    total_diario
+                    datetime.now().strftime("%Y-%m-%d %H:%M"), # Col A: Fecha Registro
+                    chofer_actual,                              # Col B: Chofer
+                    patente_asignada,                           # Col C: Patente
+                    viaje_v,                                    # Col D: Viaje
+                    dia_viaje,                                  # Col E: Día del Viaje
+                    MONTO_VIATICO_ASIGNADO,                     # Col F: Viático Asignado
+                    desayuno,                                   # Col G: Desayuno
+                    almuerzo,                                   # Col H: Almuerzo
+                    merienda,                                   # Col I: Merienda
+                    cena,                                       # Col J: Cena
+                    urea,                                       # Col K: UREA
+                    hotel,                                      # Col L: Hotel
+                    imp_municipal,                              # Col M: Impuesto Municipal
+                    remis,                                      # Col N: Remis
+                    mantenimiento,                              # Col O: Mantenimiento
+                    otros,                                      # Col P: Otros
+                    sin_comprobante,                            # Col Q: Sin Comprobante
+                    total_diario                                # Col R: Total Diario
                 ])
 
                 st.success(f"¡Gastos de {dia_viaje} por ${total_diario:,.2f} guardados exitosamente!")
