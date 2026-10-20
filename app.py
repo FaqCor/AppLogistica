@@ -738,7 +738,7 @@ else:
                 ], value_input_option='USER_ENTERED')
 
                 # Registrar los datos en la sesión para bloquear este día de inmediato
-                st.session_state.dias_guardados_viaticos[clave_registro] = {
+                 st.session_state.dias_guardados_viaticos[clave_registro] = {
                     "desayuno": desayuno,
                     "almuerzo": almuerzo,
                     "merienda": merienda,
@@ -752,7 +752,7 @@ else:
                     "sin_comprobante": sin_comprobante
                 }
 
-                st.success(f"¡Gastos de {dia_viaje} por ${total_diario:,.2f} guardados y bloqueados con éxito!")
-                st.rerun()
-            else:
-                st.warning("Ingrese un número de viaje válido e ingrese al menos un monto de gasto superior a cero.")
+                 st.success(f"¡Gastos de {dia_viaje} por ${total_diario:,.2f} guardados y bloqueados con éxito!")
+                 st.rerun()
+             else:
+                 st.warning("Ingrese un número de viaje válido e ingrese al menos un monto de gasto superior a cero.")
