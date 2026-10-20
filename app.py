@@ -487,7 +487,7 @@ else:
                         st.error(f"Error al registrar la entrega: {e}")
 
    # --- MÓDULO 2: CIERRE DE VIAJE ---
-  elif st.session_state.menu_activo == "Cierre":
+    elif st.session_state.menu_activo == "Cierre":
     st.subheader("⚙️ Cierre de Viaje y Rendición")
     
     # Obtención previa de variables
