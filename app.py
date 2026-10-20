@@ -716,7 +716,7 @@ else:
                     ])
 
                 # Guardado en orden estricto de columnas hacia Google Sheets
-                ws_viat.append_row([
+                 ws_viat.append_row([
                     datetime.now().strftime("%Y-%m-%d %H:%M"),
                     chofer_actual,
                     patente_asignada,
