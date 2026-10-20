@@ -488,16 +488,16 @@ else:
 
    # --- MÓDULO 2: CIERRE DE VIAJE ---
     elif st.session_state.menu_activo == "Cierre":
-    st.subheader("⚙️ Cierre de Viaje y Rendición")
+     st.subheader("⚙️ Cierre de Viaje y Rendición")
     
-    # Obtención previa de variables
-    envio_actual_texto = "ENV-000"
-    if envios_disponibles and len(envios_disponibles) > 0:
-        if st.session_state.envio_index >= len(envios_disponibles):
-            st.session_state.envio_index = 0
-        envio_actual_texto = envios_disponibles[st.session_state.envio_index]["envio"]
+     # Obtención previa de variables
+     envio_actual_texto = "ENV-000"
+     if envios_disponibles and len(envios_disponibles) > 0:
+         if st.session_state.envio_index >= len(envios_disponibles):
+             st.session_state.envio_index = 0
+         envio_actual_texto = envios_disponibles[st.session_state.envio_index]["envio"]
 
-    with st.form("form_cierre_mod"):
+     with st.form("form_cierre_mod"):
         # Mostramos los valores visualmente
         st.text_input("Dominio", value=patente_asignada, disabled=True)
         st.text_input("Envío Actual", value=envio_actual_texto, disabled=True)
@@ -507,7 +507,7 @@ else:
         
         btn_enviar = st.form_submit_button("FINALIZAR Y ENVIAR CIERRE")
 
-    if btn_enviar:
+     if btn_enviar:
         # Usamos directamente las variables reales en lugar de leer los widgets deshabilitados
         vehiculo_id = patente_asignada
         envio_cierre = envio_actual_texto
