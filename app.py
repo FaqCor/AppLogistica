@@ -619,8 +619,8 @@ else:
                     st.warning("Complete el número de viaje y la descripción.")
 
    # --- MÓDULO 5: VIÁTICOS ---
-elif st.session_state.menu_activo == "Viáticos":
-    st.subheader("💳 Rendición de Viáticos y Gastos")
+    elif st.session_state.menu_activo == "Viáticos":
+     st.subheader("💳 Rendición de Viáticos y Gastos")
 
     MONTO_VIATICO_ASIGNADO = 1000000.00  # $1.000.000
     st.info(f"💵 **Monto de viático asignado por Logística:** ${MONTO_VIATICO_ASIGNADO:,.2f}")
