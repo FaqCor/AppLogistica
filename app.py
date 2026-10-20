@@ -619,8 +619,8 @@ else:
                     st.warning("Complete el número de viaje y la descripción.")
 
    # --- MÓDULO 5: VIÁTICOS ---
-   elif st.session_state.menu_activo == "Viáticos":
-    st.subheader("💳 Rendición de Viáticos y Gastos")
+    elif st.session_state.menu_activo == "Viáticos":
+     st.subheader("💳 Rendición de Viáticos y Gastos")
 
     # --- CONFIGURACIÓN DE VIÁTICO ENTREGADO (LOGÍSTICA) ---
     # Este monto puede venir de la base de datos de viajes, de st.session_state,
