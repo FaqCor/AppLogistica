@@ -713,27 +713,4 @@ else:
             else:
                 st.warning("Ingrese un número de viaje válido e ingrese al menos un monto de gasto superior a cero.")
 
-    # --- MÓDULO 6: MECÁNICA (ESTADO TÉCNICO) ---
-    elif st.session_state.menu_activo == "Mecánica":
-        st.subheader("🛠️ Estado Técnico y Mantenimiento")
-        st.markdown(f"""
-            <div class='orion-card'>
-                <h4>Unidad Asignada: <b>{patente_asignada}</b></h4>
-                <p>Utilice este módulo únicamente si detecta una anomalía mecánica que requiera intervención inmediata del taller.</p>
-            </div>
-        """, unsafe_allow_html=True)
-        with st.form("form_mecanica"):
-            tipo_falla = st.selectbox("Sistema afectado", ["Motor", "Frenos", "Suspensión", "Transmisión", "Eléctrico", "Neumáticos"])
-            desc_falla = st.text_area("Describa la falla detectada")
-            if st.form_submit_button("REPORTAR FALLA TÉCNICA"):
-                if desc_falla:
-                    try:
-                        ws_mec = sheet.worksheet("Mecanica")
-                    except:
-                        ws_mec = sheet.add_worksheet(title="Mecanica", rows=100, cols=10)
-                        ws_mec.append_row(["Fecha", "Chofer", "Patente", "Sistema", "Descripcion"])
-                    
-                    ws_mec.append_row([datetime.now().strftime("%Y-%m-%d %H:%M"), chofer_actual, patente_asignada, tipo_falla, desc_falla])
-                    st.success("🛠️ Falla reportada al área de mecánica con éxito.")
-                else:
-                    st.warning("Por favor, ingrese una descripción de la falla.")
+   
