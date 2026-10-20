@@ -619,46 +619,50 @@ else:
                     st.warning("Complete el número de viaje y la descripción.")
 
    # --- MÓDULO 5: VIÁTICOS ---
-    elif st.session_state.menu_activo == "Viáticos":
-     st.subheader("💳 Rendición de Viáticos y Gastos")
+elif st.session_state.menu_activo == "Viáticos":
+    st.subheader("💳 Rendición de Viáticos y Gastos")
 
-    # --- CONFIGURACIÓN DE VIÁTICO ENTREGADO (LOGÍSTICA) ---
-    # Este monto puede venir de la base de datos de viajes, de st.session_state,
-    # o definirse por sistema según la lógica de tu empresa.
-    # Ejemplo:
     MONTO_VIATICO_ASIGNADO = 1000000.00  # $1.000.000
-
-    # Muestra el monto otorgado en modo lectura (no editable)
     st.info(f"💵 **Monto de viático asignado por Logística:** ${MONTO_VIATICO_ASIGNADO:,.2f}")
 
     with st.form("form_viat_mod"):
-        # Información general del viaje
         viaje_v = st.text_input("Número de Viaje asociado")
+        
+        # Selector del Día del Viaje
         dia_viaje = st.selectbox(
             "Seleccione el Día del Viaje",
             ["Día 1", "Día 2", "Día 3", "Día 4", "Día 5"]
         )
 
+        # Control para limpiar los inputs si cambia el día seleccionado
+        if "ultimo_dia_seleccionado" not in st.session_state:
+            st.session_state.ultimo_dia_seleccionado = dia_viaje
+
+        if st.session_state.ultimo_dia_seleccionado != dia_viaje:
+            st.session_state.ultimo_dia_seleccionado = dia_viaje
+            # Forzamos un rerun o limpiamos las keys si es necesario
+            st.rerun()
+
         st.markdown("---")
         st.markdown("### 📝 Desglose de Gastos Diarios")
 
-        # Campos numéricos para cada concepto
         col1, col2 = st.columns(2)
 
+        # Usamos 'key' única para cada number_input para controlar su valor mediante session_state
         with col1:
-            desayuno = st.number_input("Desayuno ($)", min_value=0.0, format="%.2f", step=100.0)
-            almuerzo = st.number_input("Almuerzo ($)", min_value=0.0, format="%.2f", step=100.0)
-            merienda = st.number_input("Merienda ($)", min_value=0.0, format="%.2f", step=100.0)
-            cena = st.number_input("Cena ($)", min_value=0.0, format="%.2f", step=100.0)
-            urea = st.number_input("UREA ($)", min_value=0.0, format="%.2f", step=100.0)
-            hotel = st.number_input("Hotel ($)", min_value=0.0, format="%.2f", step=100.0)
+            desayuno = st.number_input("Desayuno ($)", min_value=0.0, format="%.2f", step=100.0, key=f"desayuno_{dia_viaje}")
+            almuerzo = st.number_input("Almuerzo ($)", min_value=0.0, format="%.2f", step=100.0, key=f"almuerzo_{dia_viaje}")
+            merienda = st.number_input("Merienda ($)", min_value=0.0, format="%.2f", step=100.0, key=f"merienda_{dia_viaje}")
+            cena = st.number_input("Cena ($)", min_value=0.0, format="%.2f", step=100.0, key=f"cena_{dia_viaje}")
+            urea = st.number_input("UREA ($)", min_value=0.0, format="%.2f", step=100.0, key=f"urea_{dia_viaje}")
+            hotel = st.number_input("Hotel ($)", min_value=0.0, format="%.2f", step=100.0, key=f"hotel_{dia_viaje}")
 
         with col2:
-            imp_municipal = st.number_input("Impuesto Municipal ($)", min_value=0.0, format="%.2f", step=100.0)
-            remis = st.number_input("Remis ($)", min_value=0.0, format="%.2f", step=100.0)
-            mantenimiento = st.number_input("Mantenimiento ($)", min_value=0.0, format="%.2f", step=100.0)
-            otros = st.number_input("Otros ($)", min_value=0.0, format="%.2f", step=100.0)
-            sin_comprobante = st.number_input("Sin comprobante ($)", min_value=0.0, format="%.2f", step=100.0)
+            imp_municipal = st.number_input("Impuesto Municipal ($)", min_value=0.0, format="%.2f", step=100.0, key=f"imp_mun_{dia_viaje}")
+            remis = st.number_input("Remis ($)", min_value=0.0, format="%.2f", step=100.0, key=f"remis_{dia_viaje}")
+            mantenimiento = st.number_input("Mantenimiento ($)", min_value=0.0, format="%.2f", step=100.0, key=f"mant_{dia_viaje}")
+            otros = st.number_input("Otros ($)", min_value=0.0, format="%.2f", step=100.0, key=f"otros_{dia_viaje}")
+            sin_comprobante = st.number_input("Sin comprobante ($)", min_value=0.0, format="%.2f", step=100.0, key=f"sin_comp_{dia_viaje}")
 
         # Cálculo dinámico del Total Diario
         total_diario = (
@@ -670,7 +674,6 @@ else:
         st.markdown("---")
         st.metric(label="📊 Total Diario Registrado", value=f"${total_diario:,.2f}")
 
-        # Botón de guardado
         btn_guardar = st.form_submit_button("GUARDAR COMPROBANTE")
 
         if btn_guardar:
@@ -679,7 +682,6 @@ else:
                     ws_viat = sheet.worksheet("Viaticos")
                 except:
                     ws_viat = sheet.add_worksheet(title="Viaticos", rows=200, cols=20)
-                    # Encabezados de la tabla
                     ws_viat.append_row([
                         "Fecha Registro", "Chofer", "Patente", "Viaje", "Día del Viaje",
                         "Viático Asignado", "Desayuno", "Almuerzo", "Merienda", "Cena",
@@ -687,30 +689,27 @@ else:
                         "Otros", "Sin Comprobante", "Total Diario"
                     ])
 
-            # Inserción de la fila con el orden exacto de las columnas
                 ws_viat.append_row([
-                    datetime.now().strftime("%Y-%m-%d %H:%M"), # Col A: Fecha Registro
-                    chofer_actual,                              # Col B: Chofer
-                    patente_asignada,                           # Col C: Patente
-                    viaje_v,                                    # Col D: Viaje
-                    dia_viaje,                                  # Col E: Día del Viaje
-                    MONTO_VIATICO_ASIGNADO,                     # Col F: Viático Asignado
-                    desayuno,                                   # Col G: Desayuno
-                    almuerzo,                                   # Col H: Almuerzo
-                    merienda,                                   # Col I: Merienda
-                    cena,                                       # Col J: Cena
-                    urea,                                       # Col K: UREA
-                    hotel,                                      # Col L: Hotel
-                    imp_municipal,                              # Col M: Impuesto Municipal
-                    remis,                                      # Col N: Remis
-                    mantenimiento,                              # Col O: Mantenimiento
-                    otros,                                      # Col P: Otros
-                    sin_comprobante,                            # Col Q: Sin Comprobante
-                    total_diario                                # Col R: Total Diario
+                    datetime.now().strftime("%Y-%m-%d %H:%M"),
+                    chofer_actual,
+                    patente_asignada,
+                    viaje_v,
+                    dia_viaje,
+                    MONTO_VIATICO_ASIGNADO,
+                    desayuno,
+                    almuerzo,
+                    merienda,
+                    cena,
+                    urea,
+                    hotel,
+                    imp_municipal,
+                    remis,
+                    mantenimiento,
+                    otros,
+                    sin_comprobante,
+                    total_diario
                 ])
 
                 st.success(f"¡Gastos de {dia_viaje} por ${total_diario:,.2f} guardados exitosamente!")
             else:
                 st.warning("Ingrese un número de viaje válido e ingrese al menos un monto de gasto superior a cero.")
-
-   
