@@ -641,94 +641,118 @@ elif st.session_state.menu_activo == "Cierre":
     elif st.session_state.menu_activo == "Viáticos":
      st.subheader("💳 Rendición de Viáticos y Gastos")
 
-     MONTO_VIATICO_ASIGNADO = 1000000.00  # $1.000.000
+     MONTO_VIATICO_ASIGNADO = 1000000.00  # $1.000.000 (Definido por logística)
      st.info(f"💵 **Monto de viático asignado por Logística:** ${MONTO_VIATICO_ASIGNADO:,.2f}")
+ 
+     # Inicializar el control de días guardados en la sesión
+     if "dias_guardados_viaticos" not in st.session_state:
+         st.session_state.dias_guardados_viaticos = {}
+ 
+     # Campo de viaje fuera del formulario para vincular el registro
+     viaje_v = st.text_input("Número de Viaje asociado")
+
+     # Selector de día FUERA del formulario para actualizar la interfaz al instante
+     dia_viaje = st.selectbox(
+         "Seleccione el Día del Viaje",
+         ["Día 1", "Día 2", "Día 3", "Día 4", "Día 5"]
+     )
+ 
+     # Clave única combinando viaje y día para un control preciso
+     clave_registro = f"{viaje_v.strip()}_{dia_viaje}" if viaje_v else f"sin_viaje_{dia_viaje}"
+
+     # Validar si este día ya fue guardado
+     dia_bloqueado = clave_registro in st.session_state.dias_guardados_viaticos
+ 
+     if dia_bloqueado:
+         st.warning(f"🔒 El **{dia_viaje}** para el viaje **{viaje_v}** ya fue registrado y se encuentra bloqueado.")
 
      with st.form("form_viat_mod"):
-         viaje_v = st.text_input("Número de Viaje asociado")
-        
-         # Selector del Día del Viaje
-         dia_viaje = st.selectbox(
-             "Seleccione el Día del Viaje",
-             ["Día 1", "Día 2", "Día 3", "Día 4", "Día 5"]
-         )
-
-        # Control para limpiar los inputs si cambia el día seleccionado
-         if "ultimo_dia_seleccionado" not in st.session_state:
-             st.session_state.ultimo_dia_seleccionado = dia_viaje
-
-         if st.session_state.ultimo_dia_seleccionado != dia_viaje:
-             st.session_state.ultimo_dia_seleccionado = dia_viaje
-             # Forzamos un rerun o limpiamos las keys si es necesario
-             st.rerun()
-
-         st.markdown("---")
          st.markdown("### 📝 Desglose de Gastos Diarios")
 
          col1, col2 = st.columns(2)
 
-         # Usamos 'key' única para cada number_input para controlar su valor mediante session_state
+         # Recuperar valores guardados si ya existen, de lo contrario inician en 0.0
+         datos_previos = st.session_state.dias_guardados_viaticos.get(clave_registro, {})
+
          with col1:
-             desayuno = st.number_input("Desayuno ($)", min_value=0.0, format="%.2f", step=100.0, key=f"desayuno_{dia_viaje}")
-             almuerzo = st.number_input("Almuerzo ($)", min_value=0.0, format="%.2f", step=100.0, key=f"almuerzo_{dia_viaje}")
-             merienda = st.number_input("Merienda ($)", min_value=0.0, format="%.2f", step=100.0, key=f"merienda_{dia_viaje}")
-             cena = st.number_input("Cena ($)", min_value=0.0, format="%.2f", step=100.0, key=f"cena_{dia_viaje}")
-             urea = st.number_input("UREA ($)", min_value=0.0, format="%.2f", step=100.0, key=f"urea_{dia_viaje}")
-             hotel = st.number_input("Hotel ($)", min_value=0.0, format="%.2f", step=100.0, key=f"hotel_{dia_viaje}")
+            desayuno = st.number_input("Desayuno ($)", min_value=0.0, value=datos_previos.get("desayuno", 0.0), format="%.2f", step=100.0, key=f"desayuno_{clave_registro}", disabled=dia_bloqueado)
+            almuerzo = st.number_input("Almuerzo ($)", min_value=0.0, value=datos_previos.get("almuerzo", 0.0), format="%.2f", step=100.0, key=f"almuerzo_{clave_registro}", disabled=dia_bloqueado)
+            merienda = st.number_input("Merienda ($)", min_value=0.0, value=datos_previos.get("merienda", 0.0), format="%.2f", step=100.0, key=f"merienda_{clave_registro}", disabled=dia_bloqueado)
+            cena = st.number_input("Cena ($)", min_value=0.0, value=datos_previos.get("cena", 0.0), format="%.2f", step=100.0, key=f"cena_{clave_registro}", disabled=dia_bloqueado)
+            urea = st.number_input("UREA ($)", min_value=0.0, value=datos_previos.get("urea", 0.0), format="%.2f", step=100.0, key=f"urea_{clave_registro}", disabled=dia_bloqueado)
+            hotel = st.number_input("Hotel ($)", min_value=0.0, value=datos_previos.get("hotel", 0.0), format="%.2f", step=100.0, key=f"hotel_{clave_registro}", disabled=dia_bloqueado)
 
          with col2:
-             imp_municipal = st.number_input("Impuesto Municipal ($)", min_value=0.0, format="%.2f", step=100.0, key=f"imp_mun_{dia_viaje}")
-             remis = st.number_input("Remis ($)", min_value=0.0, format="%.2f", step=100.0, key=f"remis_{dia_viaje}")
-             mantenimiento = st.number_input("Mantenimiento ($)", min_value=0.0, format="%.2f", step=100.0, key=f"mant_{dia_viaje}")
-             otros = st.number_input("Otros ($)", min_value=0.0, format="%.2f", step=100.0, key=f"otros_{dia_viaje}")
-             sin_comprobante = st.number_input("Sin comprobante ($)", min_value=0.0, format="%.2f", step=100.0, key=f"sin_comp_{dia_viaje}")
+            imp_municipal = st.number_input("Impuesto Municipal ($)", min_value=0.0, value=datos_previos.get("imp_municipal", 0.0), format="%.2f", step=100.0, key=f"imp_mun_{clave_registro}", disabled=dia_bloqueado)
+            remis = st.number_input("Remis ($)", min_value=0.0, value=datos_previos.get("remis", 0.0), format="%.2f", step=100.0, key=f"remis_{clave_registro}", disabled=dia_bloqueado)
+            mantenimiento = st.number_input("Mantenimiento ($)", min_value=0.0, value=datos_previos.get("mantenimiento", 0.0), format="%.2f", step=100.0, key=f"mant_{clave_registro}", disabled=dia_bloqueado)
+            otros = st.number_input("Otros ($)", min_value=0.0, value=datos_previos.get("otros", 0.0), format="%.2f", step=100.0, key=f"otros_{clave_registro}", disabled=dia_bloqueado)
+            sin_comprobante = st.number_input("Sin comprobante ($)", min_value=0.0, value=datos_previos.get("sin_comprobante", 0.0), format="%.2f", step=100.0, key=f"sin_comp_{clave_registro}", disabled=dia_bloqueado)
 
          # Cálculo dinámico del Total Diario
          total_diario = (
-             desayuno + almuerzo + merienda + cena + urea + 
-             hotel + imp_municipal + remis + mantenimiento + 
-             otros + sin_comprobante
-         ) 
+            desayuno + almuerzo + merienda + cena + urea + 
+            hotel + imp_municipal + remis + mantenimiento + 
+            otros + sin_comprobante
+         )
 
          st.markdown("---")
          st.metric(label="📊 Total Diario Registrado", value=f"${total_diario:,.2f}")
 
-         btn_guardar = st.form_submit_button("GUARDAR COMPROBANTE")
+         # El botón de guardar se desgrana también si ya está bloqueado
+         btn_guardar = st.form_submit_button("GUARDAR COMPROBANTE", disabled=dia_bloqueado)
 
          if btn_guardar:
              if viaje_v and total_diario > 0:
                  try:
-                     ws_viat = sheet.worksheet("Viaticos")
+                    ws_viat = sheet.worksheet("Viaticos")
                  except:
                      ws_viat = sheet.add_worksheet(title="Viaticos", rows=200, cols=20)
                      ws_viat.append_row([
-                         "Fecha Registro", "Chofer", "Patente", "Viaje", "Día del Viaje",
-                         "Viático Asignado", "Desayuno", "Almuerzo", "Merienda", "Cena",
-                         "UREA", "Hotel", "Impuesto Municipal", "Remis", "Mantenimiento",
-                         "Otros", "Sin Comprobante", "Total Diario"
-                     ])
+                        "Fecha Registro", "Chofer", "Patente", "Viaje", "Día del Viaje",
+                        "Viático Asignado", "Desayuno", "Almuerzo", "Merienda", "Cena",
+                        "UREA", "Hotel", "Impuesto Municipal", "Remis", "Mantenimiento",
+                        "Otros", "Sin Comprobante", "Total Diario"
+                    ])
 
-                 ws_viat.append_row([
-                     datetime.now().strftime("%Y-%m-%d %H:%M"),
-                     chofer_actual,
-                     patente_asignada,
-                     viaje_v,
-                     dia_viaje,
-                     MONTO_VIATICO_ASIGNADO,
-                     desayuno,
-                     almuerzo,
-                     merienda,
-                     cena,
-                     urea,
-                     hotel,
-                     imp_municipal,
-                     remis,
-                     mantenimiento,
-                     otros,
-                     sin_comprobante,
-                     total_diario
-                 ])
+                # Guardado en orden estricto de columnas hacia Google Sheets
+                ws_viat.append_row([
+                    datetime.now().strftime("%Y-%m-%d %H:%M"),
+                    chofer_actual,
+                    patente_asignada,
+                    viaje_v,
+                    dia_viaje,
+                    MONTO_VIATICO_ASIGNADO,
+                    desayuno,
+                    almuerzo,
+                    merienda,
+                    cena,
+                    urea,
+                    hotel,
+                    imp_municipal,
+                    remis,
+                    mantenimiento,
+                    otros,
+                    sin_comprobante,
+                    total_diario
+                ], value_input_option='USER_ENTERED')
 
-                 st.success(f"¡Gastos de {dia_viaje} por ${total_diario:,.2f} guardados exitosamente!")
-             else:
-                 st.warning("Ingrese un número de viaje válido e ingrese al menos un monto de gasto superior a cero.")
+                # Registrar los datos en la sesión para bloquear este día de inmediato
+                st.session_state.dias_guardados_viaticos[clave_registro] = {
+                    "desayuno": desayuno,
+                    "almuerzo": almuerzo,
+                    "merienda": merienda,
+                    "cena": cena,
+                    "urea": urea,
+                    "hotel": hotel,
+                    "imp_municipal": imp_municipal,
+                    "remis": remis,
+                    "mantenimiento": mantenimiento,
+                    "otros": otros,
+                    "sin_comprobante": sin_comprobante
+                }
+
+                st.success(f"¡Gastos de {dia_viaje} por ${total_diario:,.2f} guardados y bloqueados con éxito!")
+                st.rerun()
+            else:
+                st.warning("Ingrese un número de viaje válido e ingrese al menos un monto de gasto superior a cero.")
