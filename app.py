@@ -618,30 +618,100 @@ else:
                 else:
                     st.warning("Complete el número de viaje y la descripción.")
 
-    # --- MÓDULO 5: VIÁTICOS ---
-    elif st.session_state.menu_activo == "Viáticos":
-        st.subheader("💳 Rendición de Viáticos y Gastos")
-        with st.form("form_viat_mod"):
-            viaje_v = st.text_input("Número de Viaje asociado")
-            categoria_gasto = st.selectbox("Concepto", ["Peaje", "Combustible extra", "Estacionamiento", "Reparación", "Comida / Viático"])
-            monto_gasto = st.number_input("Monto total ($)", min_value=0.0, format="%.2f")
-            fecha_gasto = st.date_input("Fecha del gasto")
-            
-            if st.form_submit_button("GUARDAR COMPROBANTE"):
-                if viaje_v and monto_gasto > 0:
-                    try:
-                        ws_viat = sheet.worksheet("Viaticos")
-                    except:
-                        ws_viat = sheet.add_worksheet(title="Viaticos", rows=100, cols=10)
-                        ws_viat.append_row(["Fecha Registro", "Chofer", "Patente", "Viaje", "Concepto", "Monto", "Fecha Gasto"])
-                    
+   # --- MÓDULO 5: VIÁTICOS ---
+elif st.session_state.menu_activo == "Viáticos":
+    st.subheader("💳 Rendición de Viáticos y Gastos")
+
+    # --- CONFIGURACIÓN DE VIÁTICO ENTREGADO (LOGÍSTICA) ---
+    # Este monto puede venir de la base de datos de viajes, de st.session_state,
+    # o definirse por sistema según la lógica de tu empresa.
+    # Ejemplo:
+    MONTO_VIATICO_ASIGNADO = 1000000.00  # $1.000.000
+
+    # Muestra el monto otorgado en modo lectura (no editable)
+    st.info(f"💵 **Monto de viático asignado por Logística:** ${MONTO_VIATICO_ASIGNADO:,.2f}")
+
+    with st.form("form_viat_mod"):
+        # Información general del viaje
+        viaje_v = st.text_input("Número de Viaje asociado")
+        dia_viaje = st.selectbox(
+            "Seleccione el Día del Viaje",
+            ["Día 1", "Día 2", "Día 3", "Día 4", "Día 5"]
+        )
+
+        st.markdown("---")
+        st.markdown("### 📝 Desglose de Gastos Diarios")
+
+        # Campos numéricos para cada concepto
+        col1, col2 = st.columns(2)
+
+        with col1:
+            desayuno = st.number_input("Desayuno ($)", min_value=0.0, format="%.2f", step=100.0)
+            almuerzo = st.number_input("Almuerzo ($)", min_value=0.0, format="%.2f", step=100.0)
+            merienda = st.number_input("Merienda ($)", min_value=0.0, format="%.2f", step=100.0)
+            cena = st.number_input("Cena ($)", min_value=0.0, format="%.2f", step=100.0)
+            urea = st.number_input("UREA ($)", min_value=0.0, format="%.2f", step=100.0)
+            hotel = st.number_input("Hotel ($)", min_value=0.0, format="%.2f", step=100.0)
+
+        with col2:
+            imp_municipal = st.number_input("Impuesto Municipal ($)", min_value=0.0, format="%.2f", step=100.0)
+            remis = st.number_input("Remis ($)", min_value=0.0, format="%.2f", step=100.0)
+            mantenimiento = st.number_input("Mantenimiento ($)", min_value=0.0, format="%.2f", step=100.0)
+            otros = st.number_input("Otros ($)", min_value=0.0, format="%.2f", step=100.0)
+            sin_comprobante = st.number_input("Sin comprobante ($)", min_value=0.0, format="%.2f", step=100.0)
+
+        # Cálculo dinámico del Total Diario
+        total_diario = (
+            desayuno + almuerzo + merienda + cena + urea + 
+            hotel + imp_municipal + remis + mantenimiento + 
+            otros + sin_comprobante
+        )
+
+        st.markdown("---")
+        st.metric(label="📊 Total Diario Registrado", value=f"${total_diario:,.2f}")
+
+        # Botón de guardado
+        btn_guardar = st.form_submit_button("GUARDAR COMPROBANTE")
+
+        if btn_guardar:
+            if viaje_v and total_diario > 0:
+                try:
+                    ws_viat = sheet.worksheet("Viaticos")
+                except:
+                    ws_viat = sheet.add_worksheet(title="Viaticos", rows=200, cols=20)
+                    # Encabezados de la tabla
                     ws_viat.append_row([
-                        datetime.now().strftime("%Y-%m-%d %H:%M"), chofer_actual, patente_asignada, 
-                        viaje_v, categoria_gasto, monto_gasto, str(fecha_gasto)
+                        "Fecha Registro", "Chofer", "Patente", "Viaje", "Día del Viaje",
+                        "Viático Asignado", "Desayuno", "Almuerzo", "Merienda", "Cena",
+                        "UREA", "Hotel", "Impuesto Municipal", "Remis", "Mantenimiento",
+                        "Otros", "Sin Comprobante", "Total Diario"
                     ])
-                    st.success(f"¡Gasto de ${monto_gasto:.2f} registrado correctamente!")
-                else:
-                    st.warning("Ingrese un viaje válido y un monto mayor a cero.")
+
+                # Inserción de la fila con los valores registrados
+                ws_viat.append_row([
+                    datetime.now().strftime("%Y-%m-%d %H:%M"),
+                    chofer_actual,
+                    patente_asignada,
+                    viaje_v,
+                    dia_viaje,
+                    MONTO_VIATICO_ASIGNADO,
+                    desayuno,
+                    almuerzo,
+                    merienda,
+                    cena,
+                    urea,
+                    hotel,
+                    imp_municipal,
+                    remis,
+                    mantenimiento,
+                    otros,
+                    sin_comprobante,
+                    total_diario
+                ])
+
+                st.success(f"¡Gastos de {dia_viaje} por ${total_diario:,.2f} guardados exitosamente!")
+            else:
+                st.warning("Ingrese un número de viaje válido e ingrese al menos un monto de gasto superior a cero.")
 
     # --- MÓDULO 6: MECÁNICA (ESTADO TÉCNICO) ---
     elif st.session_state.menu_activo == "Mecánica":
